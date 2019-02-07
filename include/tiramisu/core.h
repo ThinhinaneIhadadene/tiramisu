@@ -4076,6 +4076,8 @@ public:
 
     static xfer create_xfer(std::string iter_domain, xfer_prop prop, tiramisu::expr expr,
                             tiramisu::function *fct);
+
+    void gen_communication(int number_of_ranks);
 };
 
 class input: public computation

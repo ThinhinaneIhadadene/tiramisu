@@ -7654,13 +7654,15 @@ xfer tiramisu::computation::create_xfer(std::string send_iter_domain, std::strin
                                         tiramisu::expr send_dest, tiramisu::expr recv_src,
                                         xfer_prop send_prop, xfer_prop recv_prop,
                                         tiramisu::expr send_expr, tiramisu::function *fct) {
+
+
     if (send_prop.contains_attr(MPI)) {
         assert(recv_prop.contains_attr(MPI));
     } else if (send_prop.contains_attr(CUDA)) {
         assert(recv_prop.contains_attr(CUDA));
     }
-
     assert(send_expr.get_op_type() == tiramisu::o_access);
+    fct->get_computation_by_name(send_expr.get_name())[0];
     tiramisu::computation *producer = fct->get_computation_by_name(send_expr.get_name())[0];
 
     isl_set *s_iter_domain = isl_set_read_from_str(producer->get_ctx(), send_iter_domain.c_str());
@@ -7670,6 +7672,9 @@ xfer tiramisu::computation::create_xfer(std::string send_iter_domain, std::strin
     tiramisu::recv *r = new tiramisu::recv(isl_set_to_str(r_iter_domain), true, recv_prop, fct);
     isl_map *send_sched = s->gen_identity_schedule_for_iteration_domain();
     isl_map *recv_sched = r->gen_identity_schedule_for_iteration_domain();
+
+
+    //isl_set_dump(s_iter_domain);
 
     s->set_src(expr());
     s->set_dest(send_dest);
@@ -7697,6 +7702,8 @@ xfer tiramisu::computation::create_xfer(std::string iter_domain_str, xfer_prop p
     isl_set *iter_domain = isl_set_read_from_str(producer->get_ctx(), iter_domain_str.c_str());
     tiramisu::send_recv *sr = new tiramisu::send_recv(isl_set_to_str(iter_domain), producer, expr, prop, true, {1},
                                                       producer->get_function());
+
+
     isl_map *sched = sr->gen_identity_schedule_for_iteration_domain();
 
     sr->set_schedule(sched);
@@ -7903,4 +7910,145 @@ isl_map* computation::construct_distribution_map(tiramisu::rank_t rank_type, int
 
     return distribution_map;
 }
+
+void computation::gen_communication(int number_of_ranks)
+{
+    //construct distribution map of the receiver
+    isl_map* receiver_dist_map = construct_distribution_map(rank_t::r_receiver, number_of_ranks);
+
+    //Find the set that needs to be computed by the receiver
+    isl_set* receiver_to_compute_set = isl_set_apply(isl_set_copy(this->get_trimmed_time_processor_domain()), receiver_dist_map);
+
+    //Find the receiver's need_sets
+    std::vector<isl_map*> accesses;
+    generator::get_rhs_accesses(this->get_function(), this, accesses, false);
+
+    //map computation name to the receiver need set of that computation
+    std::map<std::string, isl_set*> receiver_need;
+    for(isl_map* access : accesses) {
+        //an access has the following shape [params]->{consumer[dims]->producer[dims]:constraints}
+        //consumer is the current computation
+
+        //get the name of the producer
+        std::string computation_name = isl_map_get_tuple_name(access, isl_dim_out);
+        //apply schedule to consumer
+        access = isl_map_apply_domain(access,isl_map_copy(get_trimmed_union_of_schedules()));
+        //apply schedule to producer
+        computation* producer=get_function()->get_computation_by_name(computation_name)[0];
+        access = isl_map_apply_range(access,isl_map_copy(producer->get_trimmed_union_of_schedules()));
+
+        //apply the access
+        isl_set* need_set = isl_set_apply(isl_set_copy(receiver_to_compute_set), access);
+
+        if(receiver_need.find(computation_name)!=receiver_need.end())
+            receiver_need[computation_name] = isl_set_coalesce(isl_set_union(receiver_need[computation_name], need_set));
+        else
+            receiver_need.insert({computation_name, need_set});
+    }
+
+    //have_set receiver
+    std::map<std::string,isl_set*> receiver_have;
+    for(auto need:receiver_need){
+        receiver_have.insert({need.first, isl_set_set_tuple_name(isl_set_copy(receiver_to_compute_set), need.first.c_str())});
+    }
+
+    //have_set of sender
+    //construct distribution map of the sender
+    isl_map* sender_dist_map = construct_distribution_map(rank_t::r_sender, number_of_ranks);
+
+    //Find the set that needs to be computed by the sender
+    isl_set* sender_to_compute_set = isl_set_apply(isl_set_copy(this->get_trimmed_time_processor_domain()), sender_dist_map);
+
+    std::map<std::string,isl_set*> sender_have;
+    for(auto need:receiver_need){
+        sender_have.insert({need.first, isl_set_set_tuple_name(isl_set_copy(sender_to_compute_set), need.first.c_str())});
+    }
+
+    //to receive
+    std::map<std::string, isl_set*> to_receive_sets;
+
+    for(auto need:receiver_need){
+        isl_set* missing=isl_set_subtract(need.second,receiver_have[need.first]);
+        to_receive_sets.insert({need.first, isl_set_coalesce(isl_set_intersect(missing, sender_have[need.first]))});
+    }
+
+    for(auto set:to_receive_sets){
+        int i = 0;
+        while(i < isl_set_dim(set.second, isl_dim_set)) {
+            set.second = isl_set_project_out(set.second, isl_dim_set, i, 1);
+            i++;
+        }
+        isl_set* save = isl_set_copy(set.second);
+        set.second = isl_set_set_dim_name(set.second, isl_dim_set, 0, get_rank_string_type(rank_t::r_sender).c_str());
+        set.second = isl_set_project_out(set.second, isl_dim_param, 0, 1);
+        set.second=isl_set_add_dims(set.second, isl_dim_set, 1);
+        set.second=isl_set_set_dim_name(set.second, isl_dim_set, 3, get_rank_string_type(rank_t::r_receiver).c_str());
+        std::vector<std::string> parts;
+        split_string(isl_set_to_str(set.second), "}", parts);
+        parts[0]+=" and "+get_rank_string_type(rank_t::r_receiver)+"'="+get_rank_string_type(rank_t::r_receiver)+"}";
+        set.second=isl_set_read_from_str(isl_set_get_ctx(set.second), parts[0].c_str());
+        set.second=isl_set_project_out(set.second, isl_dim_param, 2, 1);
+        isl_set* send_it=isl_set_copy(isl_set_set_tuple_name(set.second,"border_send"));
+
+
+        std::vector<std::string> parts2;std::vector<std::string> parts3;
+        save = isl_set_project_out(save, isl_dim_set, 0, 1);
+
+        split_string(isl_set_to_str(save), "[", parts2);
+        parts2[0]="["+parts2[1]+"["+get_rank_string_type(rank_t::r_receiver)+","+parts2[2];
+        save = isl_set_read_from_str(isl_set_get_ctx(save), parts2[0].c_str());
+        save=isl_set_project_out(save, isl_dim_param, 3, 1);
+        save=isl_set_set_dim_name(save, isl_dim_set, 0, get_rank_string_type(rank_t::r_receiver).c_str());
+        save=isl_set_add_dims(save, isl_dim_set, 1);
+         save=isl_set_set_dim_name(save, isl_dim_set, 3, get_rank_string_type(rank_t::r_sender).c_str());
+        split_string(isl_set_to_str(save), "}", parts3);
+         parts3[0]+=" and "+get_rank_string_type(rank_t::r_sender)+"'="+get_rank_string_type(rank_t::r_sender)+"}";
+        save=isl_set_read_from_str(isl_set_get_ctx(save), parts3[0].c_str());
+        save=isl_set_project_out(save, isl_dim_param, 0, 1);
+
+        isl_set* recv_it=isl_set_set_tuple_name(save,"border_recv");
+
+        //creating access_variables
+        var r_snd(get_rank_string_type(rank_t::r_sender).c_str());
+        var r_rcv(get_rank_string_type(rank_t::r_receiver).c_str());
+        std::vector<tiramisu::expr> iterators;
+        int idx=1;
+
+        while(idx < isl_set_dim(recv_it,isl_dim_set)-1) {
+            std::string name="ii"+std::to_string(idx);
+            recv_it=isl_set_set_dim_name(recv_it,isl_dim_set,idx,name.c_str());
+            send_it=isl_set_set_dim_name(send_it,isl_dim_set,idx,name.c_str());
+            iterators.push_back(var(isl_set_get_dim_name(recv_it, isl_dim_set, idx)));
+            idx++;
+        }
+
+        //creating access
+        tiramisu::expr access = tiramisu::expr(op_t::o_access,set.first,
+         iterators,
+         get_function()->get_computation_by_name(set.first)[0]->get_data_type());
+
+         function* f = global::get_implicit_function();
+        // Create the communication (i.e. data transfer) for the borders
+
+        xfer border_comm = computation::create_xfer(isl_set_to_str(send_it),isl_set_to_str(recv_it),r_snd,r_rcv,
+        xfer_prop(p_uint32, {MPI, BLOCK, ASYNC}), xfer_prop(p_uint32, {MPI, BLOCK, ASYNC}),
+        access, f);
+
+        // Distribute the communication
+        // border_comm.s->tag_distribute_level(r_snd);
+        // border_comm.r->tag_distribute_level(r_rcv);
+        //
+        // tiramisu::computation* c= get_function()->get_computation_by_name(set.first)[0];
+        //
+        // // Order computations and communication
+        // border_comm.s->before(*border_comm.r, computation::root);
+        // border_comm.r->before(*c, computation::root);
+        //
+        // border_comm.r->set_access("{border_recv[r_rcv,ii1,ii2,r_snd]->b_input[1+ii1,ii2]}");
+
+
+    }
+
+}
+
 }
