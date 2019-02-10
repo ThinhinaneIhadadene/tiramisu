@@ -504,11 +504,7 @@ protected:
       */
     const std::vector<computation *> &get_computations() const;
 
-    /**
-      * Return the computation of the function that has
-      * the name \p str.
-      */
-    std::vector<computation *> get_computation_by_name(std::string str) const;
+
 
     /**
       * Return a string representing the name of the GPU block iterator at
@@ -736,6 +732,12 @@ protected:
     bool use_low_level_scheduling_commands;
 
 public:
+
+    /**
+      * Return the computation of the function that has
+      * the name \p str.
+      */
+    std::vector<computation *> get_computation_by_name(std::string str) const;
 
     /**
      * \brief Construct a function called \p name.
@@ -1806,10 +1808,7 @@ private:
       */
     tiramisu::computation *get_first_definition();
 
-    /**
-      * Return the function where the computation is declared.
-      */
-    tiramisu::function *get_function() const;
+
 
     /**
       * Return the Halide statement that assigns the computation to a buffer location.
@@ -3783,6 +3782,11 @@ public:
     // @}
 
     /**
+      * Return the function where the computation is declared.
+      */
+    tiramisu::function *get_function() const;
+
+    /**
       * Tile the two loop levels \p L0 and \p L1 with rectangular
       * tiling. \p sizeX and \p sizeY represent the tile size.
       * \p L0 and \p L1 should be two consecutive loop levels.
@@ -4077,7 +4081,7 @@ public:
     static xfer create_xfer(std::string iter_domain, xfer_prop prop, tiramisu::expr expr,
                             tiramisu::function *fct);
 
-    void gen_communication(int number_of_ranks);
+    void gen_communication(int number_of_ranks,computation &comp);
 };
 
 class input: public computation
