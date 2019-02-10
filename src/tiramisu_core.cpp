@@ -7911,7 +7911,7 @@ isl_map* computation::construct_distribution_map(tiramisu::rank_t rank_type, int
     return distribution_map;
 }
 
-void computation::gen_communication(int number_of_ranks, computation &comp)
+void computation::gen_communication(int number_of_ranks)
 {
     //construct distribution map of the receiver
     isl_map* receiver_dist_map = construct_distribution_map(rank_t::r_receiver, number_of_ranks);
@@ -7921,7 +7921,6 @@ void computation::gen_communication(int number_of_ranks, computation &comp)
 
     //Find the receiver's need_sets
     std::vector<isl_map*> accesses;
-    std::vector<isl_map*> buffer_accesses;
     generator::get_rhs_accesses(this->get_function(), this, accesses, false);
 
     //map computation name to the receiver need set of that computation
@@ -8023,32 +8022,30 @@ void computation::gen_communication(int number_of_ranks, computation &comp)
             idx++;
         }
 
+        //creating access
         tiramisu::expr access = tiramisu::expr(op_t::o_access,set.first,
          iterators,
          get_function()->get_computation_by_name(set.first)[0]->get_data_type());
 
-        function* f = get_function();
-
+         function* f = global::get_implicit_function();
         // Create the communication (i.e. data transfer) for the borders
-        xfer border_comm = computation::create_xfer(
-        isl_set_to_str(send_it),
-        isl_set_to_str(recv_it),
-        r_rcv,
-        r_snd,
-        xfer_prop(p_uint32, {MPI, BLOCK, ASYNC}),
-        xfer_prop(p_uint32, {MPI, BLOCK, ASYNC}),
+
+        xfer border_comm = computation::create_xfer(isl_set_to_str(send_it),isl_set_to_str(recv_it),r_snd,r_rcv,
+        xfer_prop(p_uint32, {MPI, BLOCK, ASYNC}), xfer_prop(p_uint32, {MPI, BLOCK, ASYNC}),
         access, f);
 
         // Distribute the communication
-        border_comm.s->tag_distribute_level(r_snd);
-        border_comm.r->tag_distribute_level(r_rcv);
+        // border_comm.s->tag_distribute_level(r_snd);
+        // border_comm.r->tag_distribute_level(r_rcv);
+        //
+        // tiramisu::computation* c= get_function()->get_computation_by_name(set.first)[0];
+        //
+        // // Order computations and communication
+        // border_comm.s->before(*border_comm.r, computation::root);
+        // border_comm.r->before(*c, computation::root);
+        //
+        // border_comm.r->set_access("{border_recv[r_rcv,ii1,ii2,r_snd]->b_input[1+ii1,ii2]}");
 
-        // Order computations and communication
-        border_comm.s->before(*border_comm.r, computation::root);
-        border_comm.r->before(comp, computation::root);
-
-        //construct map
-        border_comm.r->set_access("{border_recv[r_rcv,ii1,ii2,r_snd]->b_input[10+ii1,ii2]}");
 
     }
 
