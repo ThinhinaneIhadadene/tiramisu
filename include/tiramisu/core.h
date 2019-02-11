@@ -1331,6 +1331,7 @@ class computation
     friend cuda_ast::generator;
 
 private:
+    std::string create_send_access_string(std::string send_id, std::vector<tiramisu::expr> iterators, std::string computation_name);
 
     /**
       * Access function.  A map indicating how each computation should be stored
