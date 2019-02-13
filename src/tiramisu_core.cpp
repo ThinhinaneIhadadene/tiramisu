@@ -8051,6 +8051,49 @@ void computation::gen_communication(int number_of_ranks)
 
         std::string access_string = create_send_access_string(get_name()+std::to_string(1),iterators, set.first);
         border_comm.r->set_access(access_string);
+
+        //get the extent of the distributed loop
+        this->simplify(this->get_iteration_domain());
+        tiramisu::expr lower_bound = tiramisu::utility::get_bound(recv_it,1, false);
+        tiramisu::expr upper_bound = tiramisu::utility::get_bound(recv_it, 1, true);
+        int extent2 = upper_bound.get_int_val()-lower_bound.get_int_val()+1;
+
+        std::cout <<"dim to add is : " << extent2;
+
+        tiramisu::buffer *buff_object = this->get_function()->get_buffers().find(
+        isl_map_get_tuple_name(
+        get_function()->get_computation_by_name(set.first)[0]->get_access_relation(), isl_dim_out))->second;
+
+        int off= buff_object->get_dim_sizes()[0].get_int_val()+extent2;
+        buff_object->set_dim_size(0,off);
+
+
+        //try something
+         //isl_constraint_list *l= isl_map_get_constraint_list(m);
+
+         // isl_basic_set_list* smlist= isl_set_get_basic_set_list(recv_it);
+         // int nmap=isl_set_n_basic_set(recv_it);
+         //
+         // for(int i=0;i<nmap;i++){
+         //     isl_basic_set* s=isl_basic_set_list_get_basic_set(smlist,i);
+         //     isl_constraint_list *list = isl_basic_set_get_constraint_list(s);
+         //     int n_constraints = isl_constraint_list_n_constraint(list);
+         //
+         //     for (int i = 0; i < n_constraints; i++)
+         //     {
+         //         isl_constraint *cst = isl_constraint_list_get_constraint(list, i);
+         //         isl_val *val = isl_constraint_get_coefficient_val(cst, isl_dim_set, 2);
+         //         isl_constraint_dump(cst);
+         //         isl_val_dump(val);
+         //         if (isl_val_is_one(val) or isl_val_is_negone(val)) // i.e., the coefficient of the dimension data->in_dim is 1
+         //         {
+         //             isl_val *val2 = isl_constraint_get_constant_val(cst);
+         //             int const_val = (-1) * isl_val_get_num_si(val2);
+         //             std::cout << "\n const _val " << const_val << "\t";
+         //         }
+         //     }
+         // }
+
     }
 }
 
