@@ -7861,7 +7861,7 @@ int computation::get_distributed_dimension()
         return -1;//no distributed dimension
 }
 
-isl_map* computation::construct_distribution_map(tiramisu::rank_t rank_type, int number_of_ranks)
+isl_map* computation::construct_distribution_map(tiramisu::rank_t rank_type)
 {
     DEBUG_FCT_NAME(10);
     DEBUG_INDENT(4);
@@ -7873,11 +7873,11 @@ isl_map* computation::construct_distribution_map(tiramisu::rank_t rank_type, int
     if (distributed_dimension == -1)
         ERROR("Computation " + this->get_name() + "isn't tagged distributed and called construct_distribution_map.",true);
 
-    //get the extent of the distributed loop
+    //get the extent of the distributed loop, the number od available ranks should be equal to it
     this->simplify(this->get_iteration_domain());
     tiramisu::expr lower_bound = tiramisu::utility::get_bound(this->get_trimmed_time_processor_domain(), distributed_dimension, false);
     tiramisu::expr upper_bound = tiramisu::utility::get_bound(this->get_trimmed_time_processor_domain(), distributed_dimension, true);
-    int extent = upper_bound.get_int_val()-lower_bound.get_int_val()+1;
+    int number_of_ranks = upper_bound.get_int_val()-lower_bound.get_int_val()+1;
 
     //construct the string of all dimensions
     std::string dimensions_string = "";
@@ -7896,9 +7896,7 @@ isl_map* computation::construct_distribution_map(tiramisu::rank_t rank_type, int
 
     std::string domain = this->get_name() + "[" + dimensions_string + "]";
 
-    std::string constraint_on_distributed_dimension = std::to_string(extent/number_of_ranks)
-    + rank_name + "<=" + this->get_dimension_name_for_loop_level(distributed_dimension) +
-    "<" + std::to_string(extent/number_of_ranks) + "*(" + rank_name + "+1)";
+    std::string constraint_on_distributed_dimension = rank_name + "<=" + this->get_dimension_name_for_loop_level(distributed_dimension) + "<" + "(" + rank_name + "+1)";
 
     std::string distribution_map_string = params + "->{" + domain +"->" + domain + ":"
     + ranks_definition + " and " + constraint_on_distributed_dimension + "}";
@@ -7911,10 +7909,10 @@ isl_map* computation::construct_distribution_map(tiramisu::rank_t rank_type, int
     return distribution_map;
 }
 
-void computation::gen_communication(int number_of_ranks)
+void computation::gen_communication()
 {
     //construct distribution map of the receiver
-    isl_map* receiver_dist_map = construct_distribution_map(rank_t::r_receiver, number_of_ranks);
+    isl_map* receiver_dist_map = construct_distribution_map(rank_t::r_receiver);
 
     //Find the set that needs to be computed by the receiver
     isl_set* receiver_to_compute_set = isl_set_apply(isl_set_copy(this->get_trimmed_time_processor_domain()), receiver_dist_map);
@@ -7954,7 +7952,7 @@ void computation::gen_communication(int number_of_ranks)
 
     //have_set of sender
     //construct distribution map of the sender
-    isl_map* sender_dist_map = construct_distribution_map(rank_t::r_sender, number_of_ranks);
+    isl_map* sender_dist_map = construct_distribution_map(rank_t::r_sender);
 
     //Find the set that needs to be computed by the sender
     isl_set* sender_to_compute_set = isl_set_apply(isl_set_copy(this->get_trimmed_time_processor_domain()), sender_dist_map);

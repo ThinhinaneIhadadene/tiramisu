@@ -2287,7 +2287,7 @@ private:
       * [r] -> { c[i] -> c[o0] : o0 = i and r >= 0 and r <= 4 and i >= 2r and i <= 1 + 2r }
       * /endcode
      */
-    isl_map* construct_distribution_map(tiramisu::rank_t rank_type, int number_of_ranks);
+    isl_map* construct_distribution_map(tiramisu::rank_t rank_type);
 
     /**
       * Return the distributed dimension of a computation.
@@ -4078,7 +4078,7 @@ public:
     static xfer create_xfer(std::string iter_domain, xfer_prop prop, tiramisu::expr expr,
                             tiramisu::function *fct);
 
-    void gen_communication(int number_of_ranks);
+    void gen_communication();
 };
 
 class input: public computation
