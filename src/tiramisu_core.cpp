@@ -8060,8 +8060,11 @@ void  computation::generate_communication_code(isl_set* send_it, isl_set* recv_i
     comm.s->before(*comm.r, computation::root);
     comm.r->before(*c, computation::root);
 
-    std::string access_string = create_send_access_string(get_name()+std::to_string(1),iterators, computation_name);
+
+
+    std::string access_string = create_send_access_string(communication_id,iterators, computation_name);
     comm.r->set_access(access_string);
+
 
 }
 
@@ -8133,6 +8136,8 @@ void computation::gen_communication(){
         p.second = remove_static_dimensions(p.second);
         isl_set* send_set = create_send_set(isl_set_copy(p.second), communication_id);
         isl_set* recv_set = create_recv_set(p.second, communication_id);
+        isl_set_dump(send_set);
+        isl_set_dump(recv_set);
         generate_communication_code(send_set, recv_set, p.first, communication_id);
         map_locations(recv_set, p.first);
     }
