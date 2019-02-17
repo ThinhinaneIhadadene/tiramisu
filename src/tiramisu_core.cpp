@@ -7909,24 +7909,14 @@ isl_map* computation::construct_distribution_map(tiramisu::rank_t rank_type)
     return distribution_map;
 }
 
-void computation::gen_communication()
+
+std::unordered_map<std::string, isl_set*> computation::needed_sets(std::vector<isl_map*>&accesses, isl_set*& partition)
 {
-    //construct distribution map of the receiver
-    isl_map* receiver_dist_map = construct_distribution_map(rank_t::r_receiver);
-
-    //Find the set that needs to be computed by the receiver
-    isl_set* receiver_to_compute_set = isl_set_apply(isl_set_copy(this->get_trimmed_time_processor_domain()), receiver_dist_map);
-
-    //Find the receiver's need_sets
-    std::vector<isl_map*> accesses;
-    generator::get_rhs_accesses(this->get_function(), this, accesses, false);
-
-    //map computation name to the receiver need set of that computation
-    std::map<std::string, isl_set*> receiver_need;
+    //map producer name to the needed set
+    std::unordered_map<std::string, isl_set*> needed;
     for (isl_map* access : accesses) {
         //an access has the following shape [params]->{consumer[dims]->producer[dims]:constraints}
         //consumer is the current computation
-
         //get the name of the producer
         std::string computation_name = isl_map_get_tuple_name(access, isl_dim_out);
         //apply schedule to consumer
@@ -7936,169 +7926,148 @@ void computation::gen_communication()
         access = isl_map_apply_range(access, isl_map_copy(producer->get_trimmed_union_of_schedules()));
 
         //apply the access
-        isl_set* need_set = isl_set_apply(isl_set_copy(receiver_to_compute_set), access);
+        isl_set* need_set = isl_set_apply(isl_set_copy(partition), access);
 
-        if (receiver_need.find(computation_name) != receiver_need.end())
-            receiver_need[computation_name] = isl_set_coalesce(isl_set_union(receiver_need[computation_name], need_set));
+        if (needed.find(computation_name) != needed.end())
+            needed[computation_name] = isl_set_coalesce(isl_set_union(needed[computation_name], need_set));
         else
-            receiver_need.insert({computation_name, need_set});
+            needed.insert({computation_name, need_set});
     }
-
-    //have_set receiver
-    std::map<std::string,isl_set*> receiver_have;
-    for (auto need : receiver_need) {
-        receiver_have.insert({need.first, isl_set_set_tuple_name(isl_set_copy(receiver_to_compute_set), need.first.c_str())});
-    }
-
-    //have_set of sender
-    //construct distribution map of the sender
-    isl_map* sender_dist_map = construct_distribution_map(rank_t::r_sender);
-
-    //Find the set that needs to be computed by the sender
-    isl_set* sender_to_compute_set = isl_set_apply(isl_set_copy(this->get_trimmed_time_processor_domain()), sender_dist_map);
-
-    std::map<std::string,isl_set*> sender_have;
-    for (auto need : receiver_need) {
-        sender_have.insert({need.first, isl_set_set_tuple_name(isl_set_copy(sender_to_compute_set), need.first.c_str())});
-    }
-
-    //to receive
-    std::map<std::string, isl_set*> to_receive_sets;
-
-    for (auto need : receiver_need) {
-        isl_set* missing = isl_set_subtract(need.second, receiver_have[need.first]);
-        to_receive_sets.insert({need.first, isl_set_coalesce(isl_set_intersect(missing, sender_have[need.first]))});
-    }
-
-    for (auto set : to_receive_sets) {
-        int i = 0;
-
-        while(i < isl_set_dim(set.second, isl_dim_set)) {
-            set.second = isl_set_project_out(set.second, isl_dim_set, i, 1);
-            i++;
-        }
-
-        isl_set* save = isl_set_copy(set.second);
-        set.second = isl_set_set_dim_name(set.second, isl_dim_set, 0, get_rank_string_type(rank_t::r_sender).c_str());
-        set.second = isl_set_project_out(set.second, isl_dim_param, 0, 1);
-        set.second = isl_set_add_dims(set.second, isl_dim_set, 1);
-        set.second = isl_set_set_dim_name(set.second, isl_dim_set, 3, get_rank_string_type(rank_t::r_receiver).c_str());
-        std::vector<std::string> parts;
-        split_string(isl_set_to_str(set.second), "}", parts);
-        parts[0] += " and " + get_rank_string_type(rank_t::r_receiver) + "'=" +
-        get_rank_string_type(rank_t::r_receiver) + "}";
-        set.second = isl_set_read_from_str(isl_set_get_ctx(set.second), parts[0].c_str());
-        set.second = isl_set_project_out(set.second, isl_dim_param, 2, 1);
-        isl_set* send_it = isl_set_copy(isl_set_set_tuple_name(set.second, "border_send_c_blurx1"));
-
-        std::vector<std::string> parts2;std::vector<std::string> parts3;
-        save = isl_set_project_out(save, isl_dim_set, 0, 1);
-
-        split_string(isl_set_to_str(save), "[", parts2);
-        parts2[0] = "[" + parts2[1] + "[" + get_rank_string_type(rank_t::r_receiver) + "," + parts2[2];
-        save = isl_set_read_from_str(isl_set_get_ctx(save), parts2[0].c_str());
-        save = isl_set_project_out(save, isl_dim_param, 3, 1);
-        save = isl_set_set_dim_name(save, isl_dim_set, 0, get_rank_string_type(rank_t::r_receiver).c_str());
-        save = isl_set_add_dims(save, isl_dim_set, 1);
-        save = isl_set_set_dim_name(save, isl_dim_set, 3, get_rank_string_type(rank_t::r_sender).c_str());
-        split_string(isl_set_to_str(save), "}", parts3);
-        parts3[0] += " and " + get_rank_string_type(rank_t::r_sender) + "'=" + get_rank_string_type(rank_t::r_sender) + "}";
-        save = isl_set_read_from_str(isl_set_get_ctx(save), parts3[0].c_str());
-        save = isl_set_project_out(save, isl_dim_param, 0, 1);
-
-        isl_set* recv_it = isl_set_set_tuple_name(save, "border_recv_c_blurx1");
-
-        //creating access_variables
-        var r_snd(get_rank_string_type(rank_t::r_sender).c_str());
-        var r_rcv(get_rank_string_type(rank_t::r_receiver).c_str());
-        std::vector<tiramisu::expr> iterators;
-        int idx = 1;
-
-        while (idx < isl_set_dim(recv_it,isl_dim_set)-1) {
-            std::string name = "ii" + std::to_string(idx);
-            recv_it = isl_set_set_dim_name(recv_it, isl_dim_set, idx, name.c_str());
-            send_it = isl_set_set_dim_name(send_it, isl_dim_set, idx, name.c_str());
-            iterators.push_back(var(isl_set_get_dim_name(recv_it, isl_dim_set, idx)));
-            idx++;
-        }
-
-        //creating access
-        tiramisu::expr access = tiramisu::expr(op_t::o_access, set.first,iterators,
-        get_function()->get_computation_by_name(set.first)[0]->get_data_type());
-
-        function* f = get_function();
-        // Create the communication (i.e. data transfer) for the borders
-        xfer border_comm = computation::create_xfer(
-        isl_set_to_str(send_it),
-        isl_set_to_str(recv_it),
-        r_rcv,
-        r_snd,
-        xfer_prop(p_uint32, {MPI, BLOCK, ASYNC}),
-        xfer_prop(p_uint32, {MPI, BLOCK, ASYNC}),
-        access, f);
-
-        // Distribute the communication
-        border_comm.s->tag_distribute_level(r_snd);
-        border_comm.r->tag_distribute_level(r_rcv);
-
-        computation *c = get_function()->get_computation_by_name(this->get_name())[0];
-
-        // Order computations and communication
-        border_comm.s->before(*border_comm.r, computation::root);
-        border_comm.r->before(*c, computation::root);
-
-        std::string access_string = create_send_access_string(get_name()+std::to_string(1),iterators, set.first);
-        border_comm.r->set_access(access_string);
-
-        //get the extent of the distributed loop
-        this->simplify(this->get_iteration_domain());
-        tiramisu::expr lower_bound = tiramisu::utility::get_bound(recv_it,1, false);
-        tiramisu::expr upper_bound = tiramisu::utility::get_bound(recv_it, 1, true);
-        int extent2 = upper_bound.get_int_val()-lower_bound.get_int_val()+1;
-
-        std::cout <<"dim to add is : " << extent2;
-
-        tiramisu::buffer *buff_object = this->get_function()->get_buffers().find(
-        isl_map_get_tuple_name(
-        get_function()->get_computation_by_name(set.first)[0]->get_access_relation(), isl_dim_out))->second;
-
-        int off= buff_object->get_dim_sizes()[0].get_int_val()+extent2;
-        buff_object->set_dim_size(0,off);
-
-
-        //try something
-         //isl_constraint_list *l= isl_map_get_constraint_list(m);
-
-         // isl_basic_set_list* smlist= isl_set_get_basic_set_list(recv_it);
-         // int nmap=isl_set_n_basic_set(recv_it);
-         //
-         // for(int i=0;i<nmap;i++){
-         //     isl_basic_set* s=isl_basic_set_list_get_basic_set(smlist,i);
-         //     isl_constraint_list *list = isl_basic_set_get_constraint_list(s);
-         //     int n_constraints = isl_constraint_list_n_constraint(list);
-         //
-         //     for (int i = 0; i < n_constraints; i++)
-         //     {
-         //         isl_constraint *cst = isl_constraint_list_get_constraint(list, i);
-         //         isl_val *val = isl_constraint_get_coefficient_val(cst, isl_dim_set, 2);
-         //         isl_constraint_dump(cst);
-         //         isl_val_dump(val);
-         //         if (isl_val_is_one(val) or isl_val_is_negone(val)) // i.e., the coefficient of the dimension data->in_dim is 1
-         //         {
-         //             isl_val *val2 = isl_constraint_get_constant_val(cst);
-         //             int const_val = (-1) * isl_val_get_num_si(val2);
-         //             std::cout << "\n const _val " << const_val << "\t";
-         //         }
-         //     }
-         // }
-
-    }
+    return needed;
 }
 
+std::unordered_map<std::string, isl_set*> computation::owned_sets(
+std::vector<std::string>& computations, isl_set*& partition)
+{
+    //owned sets
+    std::unordered_map<std::string,isl_set*> owned;
+    //for each producer from which we need data, we need to
+    for (auto computation: computations) {
+        owned.insert({computation, isl_set_set_tuple_name(isl_set_copy(partition), computation.c_str())});
+    }
+    return owned;
+}
 
-std::string computation::create_send_access_string(std::string send_id, std::vector<tiramisu::expr> iterators, std::string computation_name) {
+std::unordered_map<std::string, isl_set*> computation::missing_sets() {
+    //construct distribution map of the receiver
+    isl_map* receiver_dist_map = construct_distribution_map(rank_t::r_receiver);
+
+    //Find the set that needs to be computed by the receiver
+    isl_set* receiver_to_compute_set = isl_set_apply(isl_set_copy(this->get_trimmed_time_processor_domain()), receiver_dist_map);
+
+    //Find the receiver's need_sets
+    std::vector<isl_map*> accesses;
+    generator::get_rhs_accesses(this->get_function(), this, accesses, false);
+    std::vector<std::string> accesses_names;
+    for(auto access : accesses) accesses_names.push_back(isl_map_get_tuple_name(access, isl_dim_out));
+
+    std::unordered_map<std::string, isl_set*>my_owned_sets = this->owned_sets(accesses_names, receiver_to_compute_set);
+    std::unordered_map<std::string, isl_set*> my_needed_sets= this->needed_sets(accesses, receiver_to_compute_set);
+
+    //have_set receiver
+    std::unordered_map<std::string,isl_set*> my_missing_sets;
+
+    for (auto need : my_needed_sets) {
+        my_missing_sets.insert({need.first, isl_set_subtract(need.second, my_owned_sets[need.first])});
+    }
+
+    return my_missing_sets;
+}
+
+isl_set* remove_static_dimensions(isl_set* set){
+    int i = 0;
+
+    while(i < isl_set_dim(set, isl_dim_set)) {
+        set= isl_set_project_out(set, isl_dim_set, i, 1);
+        i++;
+    }
+    return set;
+}
+
+isl_set * create_send_set(isl_set* set, std::string communication_id){
+    set = isl_set_set_dim_name(set, isl_dim_set, 0, get_rank_string_type(rank_t::r_sender).c_str());
+    set = isl_set_project_out(set, isl_dim_param, 0, 1);
+    set = isl_set_add_dims(set, isl_dim_set, 1);
+    set = isl_set_set_dim_name(set, isl_dim_set, 3, get_rank_string_type(rank_t::r_receiver).c_str());
+    std::vector<std::string> parts;
+    split_string(isl_set_to_str(set), "}", parts);
+    parts[0] += " and " + get_rank_string_type(rank_t::r_receiver) + "'=" +
+    get_rank_string_type(rank_t::r_receiver) + "}";
+    set = isl_set_read_from_str(isl_set_get_ctx(set), parts[0].c_str());
+    set = isl_set_project_out(set, isl_dim_param, 2, 1);
+    std:: string id="border_send_"+communication_id;
+    return isl_set_set_tuple_name(set, id.c_str());
+}
+
+isl_set* create_recv_set(isl_set* set, std::string communication_id){
+
+    std::vector<std::string> parts2;std::vector<std::string> parts3;
+    set = isl_set_project_out(set, isl_dim_set, 0, 1);
+
+    split_string(isl_set_to_str(set), "[", parts2);
+    parts2[0] = "[" + parts2[1] + "[" + get_rank_string_type(rank_t::r_receiver) + "," + parts2[2];
+    set = isl_set_read_from_str(isl_set_get_ctx(set), parts2[0].c_str());
+    set = isl_set_project_out(set, isl_dim_param, 3, 1);
+    set = isl_set_set_dim_name(set, isl_dim_set, 0, get_rank_string_type(rank_t::r_receiver).c_str());
+    set = isl_set_add_dims(set, isl_dim_set, 1);
+    set = isl_set_set_dim_name(set, isl_dim_set, 3, get_rank_string_type(rank_t::r_sender).c_str());
+    split_string(isl_set_to_str(set), "}", parts3);
+    parts3[0] += " and " + get_rank_string_type(rank_t::r_sender) + "'=" + get_rank_string_type(rank_t::r_sender) + "}";
+    set = isl_set_read_from_str(isl_set_get_ctx(set), parts3[0].c_str());
+    set = isl_set_project_out(set, isl_dim_param, 0, 1);
+
+    std::string id = "border_recv_"+communication_id;
+    return isl_set_set_tuple_name(set, id.c_str());
+}
+
+void  computation::generate_communication_code(isl_set* send_it, isl_set* recv_it, std::string computation_name, std::string communication_id){
+    //creating access_variables
+    var r_snd(get_rank_string_type(rank_t::r_sender).c_str());
+    var r_rcv(get_rank_string_type(rank_t::r_receiver).c_str());
+    std::vector<tiramisu::expr> iterators;
+    int idx = 1;
+
+    while (idx < isl_set_dim(recv_it,isl_dim_set)-1) {
+        std::string name = "ii" + std::to_string(idx);
+        recv_it = isl_set_set_dim_name(recv_it, isl_dim_set, idx, name.c_str());
+        send_it = isl_set_set_dim_name(send_it, isl_dim_set, idx, name.c_str());
+        iterators.push_back(var(isl_set_get_dim_name(recv_it, isl_dim_set, idx)));
+        idx++;
+    }
+
+    //creating access
+    tiramisu::expr access = tiramisu::expr(op_t::o_access, computation_name,iterators,
+    get_function()->get_computation_by_name(computation_name)[0]->get_data_type());
+
+    function* f = get_function();
+    // Create the communication (i.e. data transfer) for the borders
+    xfer comm = computation::create_xfer(
+    isl_set_to_str(send_it),
+    isl_set_to_str(recv_it),
+    r_rcv,
+    r_snd,
+    xfer_prop(p_uint32, {MPI, BLOCK, ASYNC}),
+    xfer_prop(p_uint32, {MPI, BLOCK, ASYNC}),
+    access, f);
+
+    // Distribute the communication
+    comm.s->tag_distribute_level(r_snd);
+    comm.r->tag_distribute_level(r_rcv);
+
+    computation *c = get_function()->get_computation_by_name(this->get_name())[0];
+
+    // Order computations and communication
+    comm.s->before(*comm.r, computation::root);
+    comm.r->before(*c, computation::root);
+
+    std::string access_string = create_send_access_string(get_name()+std::to_string(1),iterators, computation_name);
+    comm.r->set_access(access_string);
+
+}
+
+std::string computation::create_send_access_string(std::string communication_id, std::vector<tiramisu::expr> iterators, std::string computation_name) {
         //construct accees string
-        std::string access_string = "{border_recv_"+send_id+"["+get_rank_string_type(rank_t::r_receiver)+",";
+        std::string access_string = "{border_recv_"+communication_id+"["+get_rank_string_type(rank_t::r_receiver)+",";
         std::string it_string = "";
 
         for (auto it : iterators)
@@ -8119,5 +8088,56 @@ std::string computation::create_send_access_string(std::string send_id, std::vec
         access_string += "]}";
 
         return access_string;
+}
+
+void computation::map_locations(isl_set* recv_it, std::string computation_name){
+    //get the extent of the distributed loop
+    this->simplify(this->get_iteration_domain());
+    tiramisu::expr lower_bound = tiramisu::utility::get_bound(recv_it,1, false);
+    tiramisu::expr upper_bound = tiramisu::utility::get_bound(recv_it, 1, true);
+    int extent2 = upper_bound.get_int_val()-lower_bound.get_int_val()+1;
+
+    tiramisu::buffer *buff_object = this->get_function()->get_buffers().find(
+    isl_map_get_tuple_name(
+    get_function()->get_computation_by_name(computation_name)[0]->get_access_relation(), isl_dim_out))->second;
+
+    int off= buff_object->get_dim_sizes()[0].get_int_val()+extent2;
+    buff_object->set_dim_size(0,off);
+}
+
+void computation::gen_communication(){
+
+    std::unordered_map<std::string, isl_set*>  my_missing_sets = missing_sets();
+    //get all the required Computations
+    std::vector<std::string> accesses_names;
+    for(auto missing_set : my_missing_sets) accesses_names.push_back(missing_set.first);
+    //construct distribution map of the receiver
+    isl_map* sender_dist_map = construct_distribution_map(rank_t::r_sender);
+    //Find the set that needs to be computed by the receiver
+    isl_set* sender_to_compute_set = isl_set_apply(isl_set_copy(this->get_trimmed_time_processor_domain()), sender_dist_map);
+    std::unordered_map<std::string, isl_set*>  other_have_sets = owned_sets(accesses_names, sender_to_compute_set);
+
+    //find to exchange sets
+    std::unordered_map<std::string, isl_set*>  exchange_sets;
+
+    for (auto set : my_missing_sets) {
+        exchange_sets.insert({set.first, isl_set_coalesce(isl_set_intersect(set.second, other_have_sets[set.first]))});
+
+        isl_set_dump(exchange_sets[set.first]);
     }
+
+    //create send sets, receive sets, generate code;
+    int id=0;
+    for(auto p: exchange_sets){
+        std::string communication_id = p.first+std::to_string(id);
+        p.second = remove_static_dimensions(p.second);
+        isl_set* send_set = create_send_set(isl_set_copy(p.second), communication_id);
+        isl_set* recv_set = create_recv_set(p.second, communication_id);
+        generate_communication_code(send_set, recv_set, p.first, communication_id);
+        map_locations(recv_set, p.first);
+    }
+
+}
+
+
 }

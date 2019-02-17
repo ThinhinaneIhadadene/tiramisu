@@ -2289,6 +2289,15 @@ private:
      */
     isl_map* construct_distribution_map(tiramisu::rank_t rank_type);
 
+    std::unordered_map<std::string, isl_set*> missing_sets();
+    std::unordered_map<std::string, isl_set*> owned_sets(std::vector<std::string>& computations, isl_set*& partition);
+    std::unordered_map<std::string, isl_set*> needed_sets(std::vector<isl_map*>& accesses, isl_set*& partition);
+
+    void generate_communication_code(isl_set*send_it, isl_set*recv_it, std::string computation_name, std::string communication_id);
+    void map_locations(isl_set* recv_it,std::string computation_name);
+
+
+
     /**
       * Return the distributed dimension of a computation.
       */
