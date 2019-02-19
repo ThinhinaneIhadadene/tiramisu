@@ -1331,8 +1331,9 @@ class computation
     friend cuda_ast::generator;
 
 private:
-    std::string create_send_access_string(std::string send_id, std::vector<tiramisu::expr> iterators, std::string computation_name);
-
+    std::string create_send_access_string(int send_id, std::vector<tiramisu::expr> iterators, std::string computation_name);
+    std::string get_communication_id(rank_t rank_type, int i);
+    isl_set* construct_comm_set(isl_set* recv_set, rank_t rank_type, int communication_id);
     /**
       * Access function.  A map indicating how each computation should be stored
       * in memory.  It indicates in which buffer the computation should be stored
@@ -2288,15 +2289,6 @@ private:
       * /endcode
      */
     isl_map* construct_distribution_map(tiramisu::rank_t rank_type);
-
-    std::unordered_map<std::string, isl_set*> missing_sets();
-    std::unordered_map<std::string, isl_set*> owned_sets(std::vector<std::string>& computations, isl_set*& partition);
-    std::unordered_map<std::string, isl_set*> needed_sets(std::vector<isl_map*>& accesses, isl_set*& partition);
-
-    void generate_communication_code(isl_set*send_it, isl_set*recv_it, std::string computation_name, std::string communication_id);
-    void map_locations(isl_set* recv_it,std::string computation_name);
-
-
 
     /**
       * Return the distributed dimension of a computation.
