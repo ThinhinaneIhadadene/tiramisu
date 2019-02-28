@@ -7910,7 +7910,7 @@ isl_map* computation::construct_distribution_map(tiramisu::rank_t rank_type)
 }
 
 
-std::string computation::get_communication_id(rank_t rank_type, int i){
+std::string computation::get_comm_id(rank_t rank_type, int i){
     return "b_"+get_rank_string_type(rank_type)+"_"+this->get_name()+"_"+std::to_string(i);
 }
 
@@ -7962,70 +7962,65 @@ isl_set_get_dim_name(set,isl_dim_param,idx_rrcv) != get_rank_string_type(rank_t:
     //Set the name of the set to:
     //If it's a send --> b_r_snd_compName_seqId
     //If it's a receiver --> b_r_rcv_compName_seqId
-    return isl_set_set_tuple_name(set, get_communication_id(rank_type, communication_id).c_str());
+    return isl_set_set_tuple_name(set, get_comm_id(rank_type, communication_id).c_str());
 }
 
-std::unordered_map<std::string, isl_set*> computation::construct_exchange_sets (){
+std::unordered_map<std::string, isl_set*> computation::construct_exchange_sets()
+{
     //construct distribution map of the receiver
     isl_map* receiver_dist_map = construct_distribution_map(rank_t::r_receiver);
-
     //Find the set that needs to be computed by the receiver
     isl_set* receiver_to_compute_set = isl_set_apply(isl_set_copy(this->get_trimmed_time_processor_domain()), receiver_dist_map);
 
-    //Find the receiver's need_sets
-    std::vector<isl_map*> accesses;
-    generator::get_rhs_accesses(this->get_function(), this, accesses, false);
+    //Find the receiver's needed_sets
+    std::vector<isl_map*> rhs_accesses;
+    generator::get_rhs_accesses(this->get_function(), this, rhs_accesses, false);
+    //map computation name to the receiver needed set of that computation
+    std::unordered_map <std::string, isl_set*> receiver_needed;
 
-    //map computation name to the receiver need set of that computation
-    std::unordered_map <std::string, isl_set*> receiver_need;
-    for (isl_map* access : accesses) {
-        //an access has the following shape [params]->{consumer[dims]->producer[dims]:constraints}
+    for (isl_map* rhs_access : rhs_accesses) {
+        //an access has the following structure [params]->{consumer[dims]->producer[dims]:constraints}
         //consumer is the current computation
-
         //get the name of the producer
-        std::string computation_name = isl_map_get_tuple_name(access, isl_dim_out);
+        std::string comp_name = isl_map_get_tuple_name(rhs_access, isl_dim_out);
         //apply schedule to consumer
-        access = isl_map_apply_domain(access, isl_map_copy(get_trimmed_union_of_schedules()));
+        rhs_access = isl_map_apply_domain(rhs_access, isl_map_copy(get_trimmed_union_of_schedules()));
         //apply schedule to producer
-        computation* producer = get_function()->get_computation_by_name(computation_name)[0];
-        access = isl_map_apply_range(access, isl_map_copy(producer->get_trimmed_union_of_schedules()));
+        computation* producer = get_function()->get_computation_by_name(comp_name)[0];
+        rhs_access = isl_map_apply_range(rhs_access, isl_map_copy(producer->get_trimmed_union_of_schedules()));
+        //apply rhs_access
+        isl_set* needed_set = isl_set_apply(isl_set_copy(receiver_to_compute_set), rhs_access);
 
-        //apply the access
-        isl_set* need_set = isl_set_apply(isl_set_copy(receiver_to_compute_set), access);
-
-        if (receiver_need.find(computation_name) != receiver_need.end())
-            receiver_need[computation_name] = isl_set_coalesce(isl_set_union(receiver_need[computation_name], need_set));
+        if (receiver_needed.find(comp_name) != receiver_needed.end())
+            receiver_needed[comp_name] = isl_set_coalesce(isl_set_union(receiver_needed[comp_name], needed_set));
         else
-            receiver_need.insert({computation_name, need_set});
+            receiver_needed.insert({comp_name, needed_set});
     }
 
-    //have_set receiver
-    std::unordered_map<std::string,isl_set*> receiver_have;
-    for (auto need : receiver_need) {
-        receiver_have.insert({need.first, isl_set_set_tuple_name(isl_set_copy(receiver_to_compute_set), need.first.c_str())});
+    //receiver's owned_sets
+    std::unordered_map<std::string,isl_set*> receiver_owned;
+    for (auto needed_set : receiver_needed) {
+        receiver_owned.insert({needed_set.first, isl_set_set_tuple_name(isl_set_copy(receiver_to_compute_set), needed_set.first.c_str())});
     }
 
-    //have_set of sender
-    //construct distribution map of the sender
+    //sender's owned set
     isl_map* sender_dist_map = construct_distribution_map(rank_t::r_sender);
-
-    //Find the set that needs to be computed by the sender
     isl_set* sender_to_compute_set = isl_set_apply(isl_set_copy(this->get_trimmed_time_processor_domain()), sender_dist_map);
 
-    std::unordered_map<std::string,isl_set*> sender_have;
-    for (auto need : receiver_need) {
-        sender_have.insert({need.first, isl_set_set_tuple_name(isl_set_copy(sender_to_compute_set), need.first.c_str())});
+    std::unordered_map<std::string,isl_set*> sender_owned;
+    for (auto needed_set : receiver_needed) {
+        sender_owned.insert({needed_set.first, isl_set_set_tuple_name(isl_set_copy(sender_to_compute_set), needed_set.first.c_str())});
     }
 
-    //to receive
-    std::unordered_map<std::string, isl_set*> to_receive_sets;
-
-    for (auto need : receiver_need) {
-        isl_set* missing = isl_set_subtract(need.second, receiver_have[need.first]);
-        to_receive_sets.insert({need.first, isl_set_coalesce(isl_set_intersect(missing, sender_have[need.first]))});
+    //The sets that need to be sent from r_sender -> r_receiver
+    //sender_owned intersect (receiver_needed - receiver_owned)
+    std::unordered_map<std::string, isl_set*> to_exchange_sets;
+    for (auto needed : receiver_needed) {
+        isl_set* missing = isl_set_subtract(needed.second, receiver_owned[needed.first]);
+        to_exchange_sets.insert({needed.first, isl_set_coalesce(isl_set_intersect(missing, sender_owned[needed.first]))});
     }
 
-    return to_receive_sets;
+    return to_exchange_sets;
 }
 
 void project_out_static_dimensions(isl_set*& set) {
@@ -8169,7 +8164,7 @@ std::string computation::create_send_access_string(int send_id, std::vector<tira
         int extent = upper_bound.get_int_val()-lower_bound.get_int_val()+1;
 
         //construct string access
-        std::string access_string = "{"+get_communication_id(rank_t::r_receiver,send_id)+ "["+get_rank_string_type(rank_t::r_receiver)+","+ get_rank_string_type(rank_t::r_sender)+","+it_string+"]->" +
+        std::string access_string = "{"+get_comm_id(rank_t::r_receiver,send_id)+ "["+get_rank_string_type(rank_t::r_receiver)+","+ get_rank_string_type(rank_t::r_sender)+","+it_string+"]->" +
         isl_map_get_tuple_name(get_function()->get_computation_by_name(computation_name)[0]->get_access_relation(), isl_dim_out);
         access_string += "["+ std::to_string(extent) + "+"+it_string+"]}";
 

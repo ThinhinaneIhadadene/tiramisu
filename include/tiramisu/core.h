@@ -1332,7 +1332,7 @@ class computation
 
 private:
     std::string create_send_access_string(int send_id, std::vector<tiramisu::expr> iterators, std::string computation_name);
-    std::string get_communication_id(rank_t rank_type, int i);
+    std::string get_comm_id(rank_t rank_type, int i);
     isl_set* construct_comm_set(isl_set* recv_set, rank_t rank_type, int communication_id);
     /**
       * Access function.  A map indicating how each computation should be stored
