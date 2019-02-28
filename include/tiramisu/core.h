@@ -2305,7 +2305,6 @@ private:
     void gen_communication_code(isl_set*recv_it, isl_set* send_it, int communication_id, std::string computation_name);
 
 
-
 protected:
 
     /**

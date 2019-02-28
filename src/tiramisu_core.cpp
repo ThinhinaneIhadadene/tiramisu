@@ -7909,45 +7909,57 @@ isl_map* computation::construct_distribution_map(tiramisu::rank_t rank_type)
     return distribution_map;
 }
 
-//communication id
+
 std::string computation::get_communication_id(rank_t rank_type, int i){
     return "b_"+get_rank_string_type(rank_type)+"_"+this->get_name()+"_"+std::to_string(i);
 }
 
-isl_set* computation::construct_comm_set(isl_set* recv_set, rank_t rank_type, int communication_id){
-    std::vector<std::string> parts;
+isl_set* computation::construct_comm_set(isl_set* set, rank_t rank_type, int communication_id)
+{
+    set = isl_set_insert_dims(set, isl_dim_set, 1, 1);
+    set = isl_set_insert_dims(set, isl_dim_set, 2, 1);
 
-    recv_set = isl_set_insert_dims(recv_set, isl_dim_set, 1,1);
-    recv_set = isl_set_insert_dims(recv_set, isl_dim_set,2, 1);
-    if (rank_type==rank_t::r_receiver)
+    // If the rank is a receiver, this means that in the set, the iterators will be in
+    // this order: dist_dim, r_receiver, r_sender, iterators
+    if (rank_type == rank_t::r_receiver)
     {
-        recv_set = isl_set_set_dim_name(recv_set, isl_dim_set, 1, get_rank_string_type(rank_t::r_receiver).c_str());
-        recv_set = isl_set_set_dim_name(recv_set, isl_dim_set, 2, get_rank_string_type(rank_t::r_sender).c_str());
+        set = isl_set_set_dim_name(set, isl_dim_set, 1, get_rank_string_type(rank_t::r_receiver).c_str());
+        set = isl_set_set_dim_name(set, isl_dim_set, 2, get_rank_string_type(rank_t::r_sender).c_str());
     }
-    else {
-        recv_set = isl_set_set_dim_name(recv_set, isl_dim_set, 2, get_rank_string_type(rank_t::r_receiver).c_str());
-        recv_set = isl_set_set_dim_name(recv_set, isl_dim_set, 1, get_rank_string_type(rank_t::r_sender).c_str());
+    // If the rank is a sender, this means that in the set, the iterators will be in
+    // this order: dist_dim, r_sender, r_receiver, iterators
+    else
+    {
+        set = isl_set_set_dim_name(set, isl_dim_set, 2, get_rank_string_type(rank_t::r_receiver).c_str());
+        set = isl_set_set_dim_name(set, isl_dim_set, 1, get_rank_string_type(rank_t::r_sender).c_str());
     }
 
-    split_string(isl_set_to_str(recv_set), "}", parts);
-    parts[0] += " and " + get_rank_string_type(rank_t::r_sender) + "'=" + get_rank_string_type(rank_t::r_sender);
-    parts[0] += " and " + get_rank_string_type(rank_t::r_receiver) + "'=" + get_rank_string_type(rank_t::r_receiver) + "}";
+    //Add constraints to create a relation between the dim_params and dim_sets
+    std::vector <std::string> set_parts;
+    split_string(isl_set_to_str(set), "}", set_parts);
+    set_parts[0] += " and " + get_rank_string_type(rank_t::r_sender) + "'=" + get_rank_string_type(rank_t::r_sender);
+    set_parts[0] += " and " + get_rank_string_type(rank_t::r_receiver) + "'=" + get_rank_string_type(rank_t::r_receiver) + "}";
+    set = isl_set_read_from_str(isl_set_get_ctx(set), set_parts[0].c_str());
 
-    recv_set = isl_set_read_from_str(isl_set_get_ctx(recv_set), parts[0].c_str());
-    recv_set = isl_set_project_out(recv_set, isl_dim_set, 0, 1);
-    //project out rrcv
+    //Project out the distributed dimension
+    set = isl_set_project_out(set, isl_dim_set, 0, 1);
+
+    //Project out r_receiver from isl_dim_param
     int idx_rrcv= 0;
-    while(idx_rrcv < isl_set_dim(recv_set,isl_dim_param) and
-        isl_set_get_dim_name(recv_set,isl_dim_param,idx_rrcv) != get_rank_string_type(rank_t::r_receiver)) idx_rrcv++;
-    recv_set = isl_set_project_out(recv_set, isl_dim_param, idx_rrcv, 1);
+    while(idx_rrcv < isl_set_dim(set,isl_dim_param) and
+        isl_set_get_dim_name(set,isl_dim_param,idx_rrcv) != get_rank_string_type(rank_t::r_receiver)) idx_rrcv++;
+    set = isl_set_project_out(set, isl_dim_param, idx_rrcv, 1);
 
-    //project out
+    //Project out r_sender from isl_dim_param
     int idx_rsnd = 0;
-    while(idx_rsnd < isl_set_dim(recv_set,isl_dim_param) and
-        isl_set_get_dim_name(recv_set,isl_dim_param,idx_rsnd) != get_rank_string_type(rank_t::r_sender)) idx_rsnd++;
-    recv_set = isl_set_project_out(recv_set, isl_dim_param, idx_rsnd, 1);
+    while(idx_rsnd < isl_set_dim(set,isl_dim_param) and
+        isl_set_get_dim_name(set,isl_dim_param,idx_rsnd) != get_rank_string_type(rank_t::r_sender)) idx_rsnd++;
+    set = isl_set_project_out(set, isl_dim_param, idx_rsnd, 1);
 
-    return isl_set_set_tuple_name(recv_set, get_communication_id(rank_type, communication_id).c_str());
+    //Set the name of the set to:
+    //If it's a send --> b_r_snd_compName_seqId
+    //If it's a receiver --> b_r_rcv_compName_seqId
+    return isl_set_set_tuple_name(set, get_communication_id(rank_type, communication_id).c_str());
 }
 
 std::unordered_map<std::string, isl_set*> computation::construct_exchange_sets (){
