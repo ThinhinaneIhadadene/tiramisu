@@ -7909,7 +7909,6 @@ isl_map* computation::construct_distribution_map(tiramisu::rank_t rank_type)
     return distribution_map;
 }
 
-
 std::string computation::get_comm_id(rank_t rank_type, int i){
     return "b_"+get_rank_string_type(rank_type)+"_"+this->get_name()+"_"+std::to_string(i);
 }
@@ -8036,19 +8035,20 @@ void project_out_static_dimensions(isl_set*& set) {
     isl_set_set_tuple_name(set, tuple_name.c_str());
 }
 
-void computation::gen_communication_code(isl_set*recv_it, isl_set* send_it, int communication_id, std::string computation_name ){
-
+void computation::gen_communication_code(isl_set*recv_it, isl_set* send_it, int communication_id, std::string computation_name)
+{
     //creating access_variables
     var r_snd(get_rank_string_type(rank_t::r_sender).c_str());
     var r_rcv(get_rank_string_type(rank_t::r_receiver).c_str());
+
+    //creating new iterators
     std::vector<tiramisu::expr> iterators;
     int idx = 2;
-
-    while (idx < isl_set_dim(recv_it,isl_dim_set)) {
-        std::string name = "ii" + std::to_string(idx);
+    while (idx < isl_set_dim(recv_it,isl_dim_set) ) {
+        std::string name = generate_new_variable_name();
         recv_it = isl_set_set_dim_name(recv_it, isl_dim_set, idx, name.c_str());
         send_it = isl_set_set_dim_name(send_it, isl_dim_set, idx, name.c_str());
-        iterators.push_back(var(isl_set_get_dim_name(recv_it, isl_dim_set, idx)));
+        iterators.push_back(var(name));
         idx++;
     }
 
@@ -8057,7 +8057,7 @@ void computation::gen_communication_code(isl_set*recv_it, isl_set* send_it, int 
     get_function()->get_computation_by_name(computation_name)[0]->get_data_type());
 
     function* f = get_function();
-    // Create the communication (i.e. data transfer) for the borders
+
     xfer border_comm = computation::create_xfer(
     isl_set_to_str(send_it),
     isl_set_to_str(recv_it),
@@ -8100,10 +8100,6 @@ void computation::gen_communication_code(isl_set*recv_it, isl_set* send_it, int 
     tiramisu::expr upper_bound = tiramisu::utility::get_bound(recv_it, 1, true);
     int extent2 = upper_bound.get_int_val()-lower_bound.get_int_val()+1;
 
-    std::cout <<"dim to add is : " << extent2;
-
-    isl_set_dump(recv_it);
-
     tiramisu::buffer *buff_object = this->get_function()->get_buffers().find(
     isl_map_get_tuple_name(
     get_function()->get_computation_by_name(computation_name)[0]->get_access_relation(), isl_dim_out))->second;
@@ -8114,33 +8110,26 @@ void computation::gen_communication_code(isl_set*recv_it, isl_set* send_it, int 
 
 void computation::gen_communication()
 {
-    #undef ENBALE_DEBUG
-    #define ENABLE_DEBUG true
-
-    int id = 0;
+    int comm_id = 0;
     std::unordered_map<std::string, isl_set*>  to_receive_sets = construct_exchange_sets ();
 
-    for (auto set : to_receive_sets) {
-        id++;
-
-        DEBUG(3, tiramisu::str_dump("To exchange set:"); isl_set_dump(set.second));
-
+    for (auto set : to_receive_sets)
+    {
         project_out_static_dimensions(set.second);
 
         DEBUG(3, tiramisu::str_dump("To exchange set after project out:"); isl_set_dump(set.second));
 
         if(isl_set_is_empty(set.second)) return;
 
-        isl_set* recv_it = construct_comm_set(isl_set_copy(set.second), rank_t::r_receiver, id);
-        isl_set* send_it = construct_comm_set(set.second, rank_t::r_sender, id);
+        isl_set* recv_it = construct_comm_set(isl_set_copy(set.second), rank_t::r_receiver, comm_id);
+        isl_set* send_it = construct_comm_set(set.second, rank_t::r_sender, comm_id);
 
         DEBUG(3, tiramisu::str_dump("Send iteration domain:"); isl_set_dump(send_it));
         DEBUG(3, tiramisu::str_dump("Receive iteration domain:"); isl_set_dump(recv_it));
 
-        gen_communication_code(recv_it, send_it, id, set.first);
+        gen_communication_code(recv_it, send_it, comm_id, set.first);
 
-        #undef ENBALE_DEBUG
-        #define ENBALE_DEBUG false
+        comm_id++;
     }
 }
 
