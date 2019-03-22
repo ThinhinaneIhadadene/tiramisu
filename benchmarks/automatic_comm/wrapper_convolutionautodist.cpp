@@ -94,6 +94,7 @@ int main(int, char**)
 
     compare_buffers("convolution rank "+std::to_string(rank) , output1, output2);
 
+    MPI_Barrier(MPI_COMM_WORLD);
     if(rank == 0)
     {    print_time("performance_CPU.csv", "convolutionautodist",
             {"Tiramisu auto", "Tiramisu man"},
