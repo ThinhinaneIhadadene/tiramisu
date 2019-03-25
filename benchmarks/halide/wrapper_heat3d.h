@@ -2,11 +2,9 @@
 #define HALIDE__build___wrapper_heat3d_o_h
 
 //dimensions
-#define _X 100
-#define _Y 110
-#define _Z 120
+#define _Z 100000
 //time
-#define _TIME 200
+#define _TIME 2000
 //the constants of the algorithm
 #define _ALPHA 0.125f
 #define _BETA 2.0f

@@ -57,39 +57,41 @@ int main(int argc, char **argv)
     //get the pointer to the function
     var r("r"),s("s"),i("i"),j("j"),k("k");//for the view
     var z_v("z_v",0,Z/NODES+2);
-        view v("in",{z_v,y_in,x_in,t_in},p_float32);//view on buffer wherer are stored heat3dc results
-    function* heat3d=global::get_implicit_function();
-    //send from the left
-    xfer send_previous_left = computation::create_xfer(
-    "[TIME,Y,X,Z,NbNodes,SIZE]->{border_send_pleft[t,s,k,j,i]: 0<=s<NbNodes-1 and SIZE<=k<SIZE+1 and 0<=j<Y and 0<=i<X and 1<=t<TIME+1}",
-    "[TIME,Y,X,NbNodes]->{border_recv_pleft[t,r,k,j,i]: 1<=r<NbNodes and 0<=k<1 and 0<=j<Y and 0<=i<X and 1<=t<TIME+1}",
-    s+1,
-    r-1,
-    xfer_prop(p_float32, {MPI, BLOCK, ASYNC}),
-    xfer_prop(p_float32, {MPI, BLOCK, ASYNC}),
-    v(t-1,k,j,i), heat3d);
+    //     view v("in",{z_v,y_in,x_in,t_in},p_float32);//view on buffer wherer are stored heat3dc results
+    // function* heat3d=global::get_implicit_function();
+    // //send from the left
+    // xfer send_previous_left = computation::create_xfer(
+    // "[TIME,Y,X,Z,NbNodes,SIZE]->{border_send_pleft[t,s,k,j,i]: 0<=s<NbNodes-1 and SIZE<=k<SIZE+1 and 0<=j<Y and 0<=i<X and 1<=t<TIME+1}",
+    // "[TIME,Y,X,NbNodes]->{border_recv_pleft[t,r,k,j,i]: 1<=r<NbNodes and 0<=k<1 and 0<=j<Y and 0<=i<X and 1<=t<TIME+1}",
+    // s+1,
+    // r-1,
+    // xfer_prop(p_float32, {MPI, BLOCK, ASYNC}),
+    // xfer_prop(p_float32, {MPI, BLOCK, ASYNC}),
+    // v(t-1,k,j,i), heat3d);
+    //
+    // //send from the right
+    // xfer send_previous_right = computation::create_xfer(
+    // "[TIME,Y,X,NbNodes]->{border_send_pright[t,s,k,j,i]: 1<=s<NbNodes and 1<=k<2 and 0<=j<Y and 0<=i<X and 1<=t<TIME+1}",
+    // "[TIME,Y,X,Z,NbNodes,SIZE]->{border_recv_pright[t,r,k,j,i]: 0<=r<NbNodes-1 and SIZE+1<=k<SIZE+2 and 0<=j<Y and 0<=i<X and 1<=t<TIME+1}",
+    // s-1,
+    // r+1,
+    // xfer_prop(p_float32, {MPI, BLOCK, ASYNC}),
+    // xfer_prop(p_float32, {MPI, BLOCK, ASYNC}),
+    // v(t-1,k,j,i), heat3d);
+    //
+    // //distributing communication
+    // send_previous_left.s->tag_distribute_level(s);
+    // send_previous_left.r->tag_distribute_level(r);
+    // send_previous_right.s->tag_distribute_level(s);
+    // send_previous_right.r->tag_distribute_level(r);
+    // //Order computations and communication
+    // heat3d_init.then(*send_previous_right.s, computation::root)
+    // .then(*send_previous_right.r,t)
+    // .then(*send_previous_left.s,t)
+    // .then(*send_previous_left.r,t)
+    // .then(heat3dc,t);
 
-    //send from the right
-    xfer send_previous_right = computation::create_xfer(
-    "[TIME,Y,X,NbNodes]->{border_send_pright[t,s,k,j,i]: 1<=s<NbNodes and 1<=k<2 and 0<=j<Y and 0<=i<X and 1<=t<TIME+1}",
-    "[TIME,Y,X,Z,NbNodes,SIZE]->{border_recv_pright[t,r,k,j,i]: 0<=r<NbNodes-1 and SIZE+1<=k<SIZE+2 and 0<=j<Y and 0<=i<X and 1<=t<TIME+1}",
-    s-1,
-    r+1,
-    xfer_prop(p_float32, {MPI, BLOCK, ASYNC}),
-    xfer_prop(p_float32, {MPI, BLOCK, ASYNC}),
-    v(t-1,k,j,i), heat3d);
-
-    //distributing communication
-    send_previous_left.s->tag_distribute_level(s);
-    send_previous_left.r->tag_distribute_level(r);
-    send_previous_right.s->tag_distribute_level(s);
-    send_previous_right.r->tag_distribute_level(r);
-    //Order computations and communication
-    heat3d_init.then(*send_previous_right.s, computation::root)
-    .then(*send_previous_right.r,t)
-    .then(*send_previous_left.s,t)
-    .then(*send_previous_left.r,t)
-    .then(heat3dc,t);
+    heat3d_init.then(heat3dc, computation::root);
 
     //buffers
     buffer b_in("b_in",{SIZE,Y,X},p_float32,a_input);
@@ -99,9 +101,9 @@ int main(int argc, char **argv)
     heat3d_init.store_in(&b_out,{t_in,z_in+1,y_in,x_in});
     heat3dc.store_in(&b_out,{t,z+1,y,x});
 
-    v.store_in(&b_out);
-    send_previous_left.r->set_access("{border_recv_pleft[t,r,k,j,i]->b_out[t-1,k,j,i]}");
-    send_previous_right.r->set_access("{border_recv_pright[t,r,k,j,i]->b_out[t-1,k,j,i]}");
+    // v.store_in(&b_out);
+    // send_previous_left.r->set_access("{border_recv_pleft[t,r,k,j,i]->b_out[t-1,k,j,i]}");
+    // send_previous_right.r->set_access("{border_recv_pright[t,r,k,j,i]->b_out[t-1,k,j,i]}");
     //code generation
     codegen({&b_in,&b_out}, "build/generated_fct_heat3ddist.o");
 

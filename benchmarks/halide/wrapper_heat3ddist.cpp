@@ -18,8 +18,13 @@ int main(int, char**) {
     for (int z=0; z<_Z/NODES; z++) {
       for (int c = 0; c < _Y; c++) {
           for (int r = 0; r < _X; r++)
-                node_input(r, c, z) = rand()%10+1+rank; //init data on each node
+                {
+                    node_input(r, c, z) = rand()%10 + rank; //init data on each node
+                    std::cout << node_input(r, c, z) <<" ";
+                }
+                std::cout<<"\n";
       }
+      std::cout << "\n\n";
     }
     Halide::Buffer<float> node_output(_X, _Y, _Z/NODES+2,_TIME+1, "output");
     init_buffer(node_output, (float)0);
