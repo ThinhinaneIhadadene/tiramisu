@@ -121,6 +121,36 @@ isl_set *tiramisu::computation::get_iteration_domains_of_all_definitions()
     return result;
 }
 
+constant* function::get_invariant_by_name(std::string name) const
+{
+    assert(!name.empty());
+
+    DEBUG(10, tiramisu::str_dump("Searching invariant " + name));
+
+    tiramisu::constant *res;
+    tiramisu::constant *comp;
+
+    for (int i = 0; i < this->get_invariants().size(); i++)
+    {
+	comp = (constant *) &(this->get_invariants()[i]);
+        if (name == comp->get_name())
+        {
+            res = comp;
+        }
+    }
+
+    if (res == NULL)
+    {
+        DEBUG(10, tiramisu::str_dump("Invariant not found."));
+    }
+    else
+    {
+        DEBUG(10, tiramisu::str_dump("Invariant found."));
+    }
+
+    return res;
+}
+
 bool tiramisu::computation::has_multiple_definitions()
 {
     bool is_update = false;
@@ -5551,6 +5581,11 @@ tiramisu::argument_t buffer::get_argument_type() const
     return argtype;
 }
 
+cuda_ast::memory_location buffer::get_location() const
+{
+    return this->location;
+}
+
 /**
   * Return the name of the buffer.
   */
@@ -6132,18 +6167,7 @@ isl_map *tiramisu::computation::get_trimmed_union_of_schedules() const
  */
 bool tiramisu::computation::is_let_stmt() const
 {
-    DEBUG_FCT_NAME(3);
-    DEBUG_INDENT(4);
-
-    std::string s1 = "This computation is ";
-    std::string s2 = (is_let?" a ":" not a ");
-    std::string s3 = "let statement.";
-
-    DEBUG(10, tiramisu::str_dump(s1 + s2 + s3));
-
-    DEBUG_INDENT(-4);
-
-    return is_let;
+    return this->is_let;
 }
 
 bool tiramisu::computation::is_library_call() const

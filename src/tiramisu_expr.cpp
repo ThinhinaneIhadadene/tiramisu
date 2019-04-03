@@ -185,4 +185,35 @@ expr allocate(const buffer &b)
     return expr{o_allocate, b.get_name()};
 }
 
+expr cublas_sgemm(const buffer &A, const buffer &B, buffer &C,
+                  expr M, expr N, expr K,
+                  expr alpha, expr beta,
+                  expr ldA, expr ldB, expr ldC,
+                  expr offsetA, expr offsetB, expr offsetC,
+                  expr transposeA, expr transposeB)
+{
+    if (A.get_location() != cuda_ast::memory_location::global ||
+        B.get_location() != cuda_ast::memory_location::global ||
+        C.get_location() != cuda_ast::memory_location::global) {
+        ERROR("Buffers must be on GPU global memory", true);
+    }
+    if (A.get_elements_type() != p_float32 ||
+        B.get_elements_type() != p_float32 ||
+        C.get_elements_type() != p_float32) {
+        ERROR("Only float32 type is supported", true);
+    }
+    return expr(o_call, "tiramisu_cublas_sgemm",
+            {
+                var(A.get_name()),
+                var(B.get_name()),
+                var(C.get_name()),
+                cast(p_uint64, M), cast(p_uint64, N), cast(p_uint64, K),
+                cast(p_float32, alpha), cast(p_float32, beta),
+                cast(p_uint64, ldA), cast(p_uint64, ldB), cast(p_uint64, ldC),
+                cast(p_uint64, offsetA), cast(p_uint64, offsetB), cast(p_uint64, offsetC),
+                cast(p_boolean, transposeA), cast(p_boolean, transposeB)
+            },
+            tiramisu::p_uint8);
+}
+
 }

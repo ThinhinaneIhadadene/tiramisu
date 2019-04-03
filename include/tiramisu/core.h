@@ -1029,6 +1029,12 @@ public:
     void gen_time_space_domain();
 
     /**
+      * Return the invariant of the function that has
+      * the name \p str.
+      */
+    constant* get_invariant_by_name(std::string str) const;
+
+    /**
       * Set the arguments of the function.
       * The arguments of the function are provided as a vector of
       * pointers to buffers. Each buffer represents an argument
@@ -1316,6 +1322,11 @@ public:
       *  deallocated at the exit of the function).
       */
     tiramisu::argument_t get_argument_type() const;
+
+    /**
+     * Return the memory location of the buffer.
+     */
+    cuda_ast::memory_location get_location() const;
 
     /**
       * Return the name of the buffer.
