@@ -41,8 +41,8 @@ int main(int argc, char* argv[])
     Out.drop_rank_iter(i0);
     R.drop_rank_iter(i0);
 
-    buffer b_Img("b_Img", {_ROWS/_NODES, _COLS, 3}, p_int32, a_input);
-    buffer   b_R("b_R",   {_ROWS/_NODES, _COLS, 3}, p_int32, a_output);
+    buffer b_Img("b_Img", {_ROWS/_NODES + 2, _COLS, 3}, p_int32, a_input);
+    buffer   b_R("b_R",   {_ROWS/_NODES + 2, _COLS, 3}, p_int32, a_output);
 
     Img.store_in(&b_Img);
     R.store_in(&b_R);
