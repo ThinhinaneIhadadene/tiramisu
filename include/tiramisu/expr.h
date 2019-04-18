@@ -66,6 +66,8 @@ private:
       */
     static function *implicit_fct;
 
+    static int number_of_ranks;
+
 public:
 
     /**
@@ -145,6 +147,27 @@ public:
     global()
     {
         set_default_tiramisu_options();
+    }
+
+
+    /**
+      * Return the number_of_ranks of the distributed backend.
+      *
+      */
+    static int get_number_of_ranks()
+    {
+        return global::number_of_ranks;
+    }
+
+    /**
+      * Set the number_of_ranks for the ditsributed program to the nbranks given as an argument.
+      *
+      * All communication generated later using the automatic communication code generator
+      * uses this number of ranks.
+      */
+    static void set_number_of_ranks(int nbranks)
+    {
+        global::number_of_ranks = nbranks;
     }
 };
 

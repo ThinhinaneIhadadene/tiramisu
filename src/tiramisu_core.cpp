@@ -16,6 +16,7 @@ namespace tiramisu
 bool global::auto_data_mapping;
 function *global::implicit_fct;
 
+int global::number_of_ranks;
 primitive_t global::loop_iterator_type = p_int32;
 
 // Used for the generation of new variable names.
@@ -977,16 +978,16 @@ std::string utility::get_parameters_list(isl_set *set)
     return list;
 }
 
-int utility::get_extent(isl_set *set, int dim)
-{
-    tiramisu::expr lower_bound = tiramisu::utility::get_bound(set, dim, false);
-    tiramisu::expr upper_bound = tiramisu::utility::get_bound(set, dim, true);
-
-    if(lower_bound.get_expr_type() != tiramisu::e_val or upper_bound.get_expr_type() != tiramisu::e_val)
-        ERROR("Check if the context is set for constants of distributed dimension\n Dumping : upper "+upper_bound.to_str() + " - lower" + lower_bound.to_str(), true);
-
-    return upper_bound.get_int_val() - lower_bound.get_int_val() + 1;
-}
+// int utility::get_extent(isl_set *set, int dim)
+// {
+//     tiramisu::expr lower_bound = tiramisu::utility::get_bound(set, dim, false);
+//     tiramisu::expr upper_bound = tiramisu::utility::get_bound(set, dim, true);
+//
+//     if(lower_bound.get_expr_type() != tiramisu::e_val or upper_bound.get_expr_type() != tiramisu::e_val)
+//         ERROR("Check if the context is set for constants of distributed dimension\n Dumping : upper "+upper_bound.to_str() + " - lower" + lower_bound.to_str(), true);
+//
+//     return upper_bound.get_int_val() - lower_bound.get_int_val() + 1;
+// }
 
 tiramisu::constant *tiramisu::computation::create_separator(const tiramisu::expr &loop_upper_bound, int v)
 {
@@ -7798,7 +7799,9 @@ isl_map* computation::construct_distribution_map(tiramisu::rank_t rank_type)
     this->simplify(this->get_iteration_domain());
     isl_set * it_dom = this->get_trimmed_time_processor_domain();
     project_out_static_dimensions(it_dom);
-    int number_of_ranks = tiramisu::utility::get_extent(it_dom, distributed_dimension);
+    // int number_of_ranks = tiramisu::utility::get_extent(it_dom, distributed_dimension);
+
+    int number_of_ranks = global::get_number_of_ranks();
 
     std::string dimensions_string = "";
     for (int i = 0; i < dimensions_names.size(); i++)
