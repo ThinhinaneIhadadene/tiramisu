@@ -13,6 +13,8 @@ int main() {
 
     function cvtcolor_dist("cvtcolorautodist_tiramisu");
 
+    global::set_number_of_ranks(NODES);
+
     cvtcolor_dist.add_context_constraints("[ROWS]->{:ROWS = "+std::to_string(_ROWS)+"}");
 
     constant CHANNELS("CHANNELS", expr(3), p_int32, true, NULL, 0, &cvtcolor_dist);

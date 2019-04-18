@@ -10,6 +10,9 @@ int main(int argc, char **argv)
     tiramisu::init("convolutionautodist_tiramisu");
 
     function *f = global::get_implicit_function();
+
+    global::set_number_of_ranks(_NODES);
+
     f->add_context_constraints("[ROWS]->{: ROWS = "+std::to_string(_ROWS)+"}");
 
     constant SIZE0("COLS", _COLS);

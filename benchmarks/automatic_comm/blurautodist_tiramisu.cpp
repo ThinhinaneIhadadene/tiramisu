@@ -13,6 +13,8 @@ int main(int argc, char **argv) {
     function blur("blurautodist_tiramisu");
     blur.add_context_constraints("[ROWS]->{:ROWS = "+std::to_string(_ROWS)+"}");
 
+    global::set_number_of_ranks(_NODES);
+
     constant ROWS("ROWS", expr((int32_t) _ROWS), p_int32, true, nullptr, 0, &blur);
     constant COLS("COLS", expr((int32_t) _COLS), p_int32, true, nullptr, 0, &blur);
 

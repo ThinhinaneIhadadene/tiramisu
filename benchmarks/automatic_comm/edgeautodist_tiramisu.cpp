@@ -11,6 +11,9 @@ int main(int argc, char* argv[])
     constant ROWS("ROWS",_ROWS);
 
     function* edge = global::get_implicit_function();
+
+    global::set_number_of_ranks(_NODES);
+
     edge->add_context_constraints("[ROWS]->{:ROWS = "+std::to_string(_ROWS)+"}");
 
     var ir("ir", 0, ROWS-2), jr("jr", 0, COLS-2), c("c", 0, 3), ii("ii"), jj("jj"), kk("kk"), p("p"),q("q"), i1("i1"), i0("i0"), jn("jn", 0, COLS);
