@@ -983,7 +983,7 @@ int utility::get_extent(isl_set *set, int dim)
     tiramisu::expr upper_bound = tiramisu::utility::get_bound(set, dim, true);
 
     if(lower_bound.get_expr_type() != tiramisu::e_val or upper_bound.get_expr_type() != tiramisu::e_val)
-        ERROR("Check if the context is set for constants of distributed dimension", true);
+        ERROR("Check if the context is set for constants of distributed dimension\n Dumping : upper "+upper_bound.to_str() + " - lower" + lower_bound.to_str(), true);
 
     return upper_bound.get_int_val() - lower_bound.get_int_val() + 1;
 }
@@ -4816,7 +4816,37 @@ tiramisu::expr utility::extract_bound_expression(isl_ast_node *node, int dim, bo
 
     if (isl_ast_node_get_type(node) == isl_ast_node_block)
     {
-        ERROR("Currently Tiramisu does not support extracting bounds from blocks.", true);
+        //DEBUG(3, tiramisu::str_dump("Extracting bound for a block"));
+
+        tiramisu::str_dump("\n\nExtracting bound for a block\n\n");
+
+        isl_ast_node_list *list = isl_ast_node_block_get_children(node);
+
+        std::vector<tiramisu::expr> minimums;
+
+        for (int i = isl_ast_node_list_n_ast_node(list) - 1; i >= 0; i--)
+        {
+            isl_ast_node *child = isl_ast_node_list_get_ast_node(list, i);
+
+            //create a minimum expression
+            minimums.push_back(utility::extract_bound_expression(child, dim, upper));
+        }
+
+        tiramisu::expr op1 = minimums[0];
+        tiramisu::expr op2 = minimums[1];
+
+        tiramisu::expr min = tiramisu::expr(o_min, op1, op2);
+
+        for(int i = 2; i < minimums.size(); i++) {
+            min = tiramisu::expr(o_min, min, minimums[i]);
+        }
+
+        std::cout << "Minimum extracted : " << min.to_str() << std::flush;
+
+        return min;
+
+        //ERROR("Currently Tiramisu does not support extracting bounds from blocks.", true);
+
     }
     else if (isl_ast_node_get_type(node) == isl_ast_node_for)
     {
@@ -4876,18 +4906,18 @@ tiramisu::expr utility::extract_bound_expression(isl_ast_node *node, int dim, bo
     {
         DEBUG(3, tiramisu::str_dump("If conditional."));
 
-        // tiramisu::expr cond_bound = tiramisu_expr_from_isl_ast_expr(isl_ast_node_if_get_cond(node));
+        tiramisu::expr cond_bound = tiramisu_expr_from_isl_ast_expr(isl_ast_node_if_get_cond(node));
         tiramisu::expr then_bound = utility::extract_bound_expression(isl_ast_node_if_get_then(node), dim, upper);
 
         tiramisu::expr else_bound;
         if (isl_ast_node_if_has_else(node))
         {
-            // else_bound = utility::extract_bound_expression(isl_ast_node_if_get_else(node), dim, upper);
-            // result = tiramisu::expr(tiramisu::o_s, cond_bound, then_bound, else_bound);
-            ERROR("If Then Else is unsupported in bound extraction.", true);
+            else_bound = utility::extract_bound_expression(isl_ast_node_if_get_else(node), dim, upper);
+            result = tiramisu::expr(tiramisu::o_select, cond_bound, then_bound, else_bound);
+            // ERROR("If Then Else is unsupported in bound extraction.", true);
         }
         else
-            result = then_bound; //tiramisu::expr(tiramisu::o_cond, cond_bound, then_bound);
+            result = then_bound;
     }
 
     DEBUG(3, tiramisu::str_dump("Extracted bound:"); result.dump(false));
@@ -4970,7 +5000,7 @@ int computation::compute_maximal_AST_depth()
  */
 tiramisu::expr utility::get_bound(isl_set *set, int dim, int upper)
 {
-    std::cout << "\n\nCalling get bound\n" << std::flush;
+    std::cout << "\n\nCalling get bound on dimension " << dim <<" for " << upper << "\n" << std::flush;
 
     DEBUG_FCT_NAME(10);
     DEBUG_INDENT(4);
@@ -4985,10 +5015,7 @@ tiramisu::expr utility::get_bound(isl_set *set, int dim, int upper)
                                  std::to_string(dim) + " of the set ",
                                  isl_set_to_str(set)));
 
-                                 tiramisu::str_dump(std::string("Getting the ") + (upper ? "upper" : "lower") +
-                                                              " bound on the dimension " +
-                                                              std::to_string(dim) + " of the set ",
-                                                              isl_set_to_str(set));
+
 
     tiramisu::expr e = tiramisu::expr();
     isl_ast_build *ast_build;
@@ -5043,7 +5070,7 @@ tiramisu::expr utility::get_bound(isl_set *set, int dim, int upper)
     isl_ast_node *node = isl_ast_build_node_from_schedule_map(ast_build, isl_union_map_from_map(map));
 
 
-    std::cout << "\n" << isl_ast_node_to_C_str(node) <<"\n";
+    std::cout << "\n" << isl_ast_node_to_C_str(node) <<"\n" << std::flush;
 
     e = utility::extract_bound_expression(node, dim, upper);
     isl_ast_build_free(ast_build);
@@ -5051,6 +5078,9 @@ tiramisu::expr utility::get_bound(isl_set *set, int dim, int upper)
     assert(e.is_defined() && "The computed bound expression is undefined.");
     DEBUG(10, tiramisu::str_dump(std::string("The ") + (upper ? "upper" : "lower") + " bound is : "); e.dump(false));
     DEBUG_INDENT(-4);
+
+
+    std::cout << "Result of get bound is : " << e.to_str() << std::flush;
 
     return e;
 }
@@ -5097,6 +5127,7 @@ bool computation::separateAndSplit(int L0, int v)
 
     tiramisu::expr loop_bound = loop_upper_bound - loop_lower_bound +
             tiramisu::expr(o_cast, global::get_loop_iterator_data_type(), tiramisu::expr((int32_t) 1));
+
     loop_bound = loop_bound.simplify();
 
     DEBUG(3, tiramisu::str_dump("Loop bound for the loop to be separated and split: "); loop_bound.dump(false));
@@ -7981,6 +8012,8 @@ std::unordered_map<std::string, isl_set*> computation::construct_exchange_sets()
 
 std::string get_shift(isl_set *set, int dim){
     tiramisu::expr e = tiramisu::utility::get_bound(set, dim, false);
+
+    std::cout << "Dumping shift found : " << e.to_str() << std::flush;
     return e.to_str();
 }
 
