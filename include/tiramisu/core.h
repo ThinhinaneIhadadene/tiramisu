@@ -1029,6 +1029,12 @@ public:
     void gen_time_space_domain();
 
     /**
+      * Return the invariant of the function that has
+      * the name \p str.
+      */
+    constant* get_invariant_by_name(std::string str) const;
+
+    /**
       * Set the arguments of the function.
       * The arguments of the function are provided as a vector of
       * pointers to buffers. Each buffer represents an argument
@@ -1316,6 +1322,11 @@ public:
       *  deallocated at the exit of the function).
       */
     tiramisu::argument_t get_argument_type() const;
+
+    /**
+     * Return the memory location of the buffer.
+     */
+    cuda_ast::memory_location get_location() const;
 
     /**
       * Return the name of the buffer.
@@ -4650,6 +4661,13 @@ protected:
                                                      int coeff,
                                                      const tiramisu::function *fct);
 
+    /**
+     * Extract tags from the ISL ast node at given level. This is a helper
+     * function meant to be used from halide_stmt_from_isl_node. Traverses
+     * the ISL ast tree and fills the tagged_stmts vector.
+     */
+    static void extract_tags_from_isl_node(const tiramisu::function &fct, isl_ast_node *node, int level,
+                                           std::vector<std::pair<std::string, std::string>> &tagged_stmts);
 
     /**
       * Generate a Halide statement from an ISL ast node object in the ISL ast
