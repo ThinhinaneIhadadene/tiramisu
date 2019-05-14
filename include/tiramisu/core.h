@@ -2402,16 +2402,15 @@ private:
       * and handles the storage of the receives.
       * Currently, this process works for programs that distribute the outermost loop.
       */
-    void gen_communication_code(isl_set*recv_it, isl_set* send_it, int communication_id, std::string computation_name);
-
-    void gen_communication_code(isl_set* set, int communication_id, std::string computation_name, std::string shift_send,
-    std::string shift_rcv);
+    void gen_communication_code(isl_set* set, std::string computation_name,
+                                    std::string shift_send, std::string shift_rcv);
 
 protected:
 
-    std::unordered_map<std::string, isl_set*> compute_needed_sets();
+    std::unordered_map<std::string, isl_set*> compute_needed_sets(rank_t rank_type);
 
-    std::unordered_map<std::string, isl_set*> compute_owned_sets(std::unordered_map<std::string, isl_set*> needed_sets);
+    std::unordered_map<std::string, isl_set*> compute_owned_sets(
+                        std::unordered_map<std::string, isl_set*> needed_sets, rank_t rank_type);
 
     /**
       * \brief Construct the distribution map of a computation.

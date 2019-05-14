@@ -4800,6 +4800,133 @@ int compute_recursively_max_AST_depth(isl_ast_node *node)
   * \p upper is a boolean that should be set to true to extract
   * the upper bound and false to extract the lower bound.
   */
+// tiramisu::expr utility::extract_bound_expression(isl_ast_node *node, int dim, bool upper)
+// {
+//     assert(node != NULL);
+//     assert(dim >= 0);
+//
+//     DEBUG_FCT_NAME(3);
+//     DEBUG_INDENT(4);
+//
+//     tiramisu::expr result;
+//
+//     DEBUG(3, tiramisu::str_dump("Extracting bounds from a loop at depth = " + std::to_string(dim)));
+//     DEBUG(3, tiramisu::str_dump("Extracting bounds from the following ISL AST node "));
+//     DEBUG(3, tiramisu::str_dump("\n"); tiramisu::str_dump(std::string(isl_ast_node_to_C_str(node))));
+//
+//
+//     if (isl_ast_node_get_type(node) == isl_ast_node_block)
+//     {
+//         //DEBUG(3, tiramisu::str_dump("Extracting bound for a block"));
+//
+//         tiramisu::str_dump("\n\nExtracting bound for a block\n\n");
+//
+//         isl_ast_node_list *list = isl_ast_node_block_get_children(node);
+//
+//         std::vector<tiramisu::expr> minimums;
+//
+//         for (int i = isl_ast_node_list_n_ast_node(list) - 1; i >= 0; i--)
+//         {
+//             isl_ast_node *child = isl_ast_node_list_get_ast_node(list, i);
+//
+//             //create a minimum expression
+//             minimums.push_back(utility::extract_bound_expression(child, dim, upper));
+//         }
+//
+//         tiramisu::expr op1 = minimums[0];
+//         tiramisu::expr op2 = minimums[1];
+//
+//         tiramisu::expr min = tiramisu::expr(o_min, op1, op2);
+//
+//         for(int i = 2; i < minimums.size(); i++) {
+//             min = tiramisu::expr(o_min, min, minimums[i]);
+//         }
+//
+//         std::cout << "Minimum extracted : " << min.to_str() << std::flush;
+//
+//         return min;
+//
+//         //ERROR("Currently Tiramisu does not support extracting bounds from blocks.", true);
+//
+//     }
+//     else if (isl_ast_node_get_type(node) == isl_ast_node_for)
+//     {
+//         DEBUG(3, tiramisu::str_dump("Extracting bounds from a for loop."));
+//         isl_ast_expr *init_bound = isl_ast_node_for_get_init(node);
+//         isl_ast_expr *upper_bound = isl_ast_node_for_get_cond(node);
+//         DEBUG(3, tiramisu::str_dump("Lower bound at this level is: " + std::string(isl_ast_expr_to_C_str(init_bound))));
+//         DEBUG(3, tiramisu::str_dump("Upper bound at this level is: " + std::string(isl_ast_expr_to_C_str(upper_bound))));
+//
+//         if (dim == 0)
+//         {
+//             if (upper)
+//             {
+//                 isl_ast_expr *cond = isl_ast_node_for_get_cond(node);
+//
+//                 /**
+//                   * If we have an expression
+//                   *  i < N
+//                   * or an expression
+//                   *  i <= N - 1
+//                   *
+//                   * In both cases, the returned bound should be (N-1).
+//                   */
+//                 if (isl_ast_expr_get_op_type(cond) == isl_ast_op_lt)
+//                 {
+//                     // Create an expression of "1".
+//                     isl_val *one = isl_val_one(isl_ast_node_get_ctx(node));
+//                     // Add 1 to the ISL ast upper bound to transform it into a strinct bound.
+//                     result = tiramisu_expr_from_isl_ast_expr(isl_ast_expr_sub(isl_ast_expr_get_op_arg(cond, 1),
+//                                                              isl_ast_expr_from_val(one)));
+//                 }
+//                 else if (isl_ast_expr_get_op_type(cond) == isl_ast_op_le)
+//                 {
+//                     result = tiramisu_expr_from_isl_ast_expr(isl_ast_expr_get_op_arg(cond, 1));
+//                 }
+//             }
+//             else
+//             {
+//                 isl_ast_expr *init = isl_ast_node_for_get_init(node);
+//                 result = tiramisu_expr_from_isl_ast_expr(init);
+//             }
+//         }
+//         else
+//         {
+//             isl_ast_node *body = isl_ast_node_for_get_body(node);
+//             result = utility::extract_bound_expression(body, dim-1, upper);
+//             isl_ast_node_free(body);
+//         }
+//
+//         assert(result.is_defined());
+//     }
+//     else if (isl_ast_node_get_type(node) == isl_ast_node_user)
+//     {
+//         ERROR("Cannot extract bounds from a isl_ast_user node.", true);
+//     }
+//     else if (isl_ast_node_get_type(node) == isl_ast_node_if)
+//     {
+//         DEBUG(3, tiramisu::str_dump("If conditional."));
+//
+//         tiramisu::expr cond_bound = tiramisu_expr_from_isl_ast_expr(isl_ast_node_if_get_cond(node));
+//         tiramisu::expr then_bound = utility::extract_bound_expression(isl_ast_node_if_get_then(node), dim, upper);
+//
+//         tiramisu::expr else_bound;
+//         if (isl_ast_node_if_has_else(node))
+//         {
+//             else_bound = utility::extract_bound_expression(isl_ast_node_if_get_else(node), dim, upper);
+//             result = tiramisu::expr(tiramisu::o_select, cond_bound, then_bound, else_bound);
+//             // ERROR("If Then Else is unsupported in bound extraction.", true);
+//         }
+//         else
+//             result = then_bound;
+//     }
+//
+//     DEBUG(3, tiramisu::str_dump("Extracted bound:"); result.dump(false));
+//     DEBUG_INDENT(-4);
+//
+//     return result;
+// }
+
 tiramisu::expr utility::extract_bound_expression(isl_ast_node *node, int dim, bool upper)
 {
     assert(node != NULL);
@@ -4814,40 +4941,9 @@ tiramisu::expr utility::extract_bound_expression(isl_ast_node *node, int dim, bo
     DEBUG(3, tiramisu::str_dump("Extracting bounds from the following ISL AST node "));
     DEBUG(3, tiramisu::str_dump("\n"); tiramisu::str_dump(std::string(isl_ast_node_to_C_str(node))));
 
-
     if (isl_ast_node_get_type(node) == isl_ast_node_block)
     {
-        //DEBUG(3, tiramisu::str_dump("Extracting bound for a block"));
-
-        tiramisu::str_dump("\n\nExtracting bound for a block\n\n");
-
-        isl_ast_node_list *list = isl_ast_node_block_get_children(node);
-
-        std::vector<tiramisu::expr> minimums;
-
-        for (int i = isl_ast_node_list_n_ast_node(list) - 1; i >= 0; i--)
-        {
-            isl_ast_node *child = isl_ast_node_list_get_ast_node(list, i);
-
-            //create a minimum expression
-            minimums.push_back(utility::extract_bound_expression(child, dim, upper));
-        }
-
-        tiramisu::expr op1 = minimums[0];
-        tiramisu::expr op2 = minimums[1];
-
-        tiramisu::expr min = tiramisu::expr(o_min, op1, op2);
-
-        for(int i = 2; i < minimums.size(); i++) {
-            min = tiramisu::expr(o_min, min, minimums[i]);
-        }
-
-        std::cout << "Minimum extracted : " << min.to_str() << std::flush;
-
-        return min;
-
-        //ERROR("Currently Tiramisu does not support extracting bounds from blocks.", true);
-
+        ERROR("Currently Tiramisu does not support extracting bounds from blocks.", true);
     }
     else if (isl_ast_node_get_type(node) == isl_ast_node_for)
     {
@@ -4907,18 +5003,18 @@ tiramisu::expr utility::extract_bound_expression(isl_ast_node *node, int dim, bo
     {
         DEBUG(3, tiramisu::str_dump("If conditional."));
 
-        tiramisu::expr cond_bound = tiramisu_expr_from_isl_ast_expr(isl_ast_node_if_get_cond(node));
+        // tiramisu::expr cond_bound = tiramisu_expr_from_isl_ast_expr(isl_ast_node_if_get_cond(node));
         tiramisu::expr then_bound = utility::extract_bound_expression(isl_ast_node_if_get_then(node), dim, upper);
 
         tiramisu::expr else_bound;
         if (isl_ast_node_if_has_else(node))
         {
-            else_bound = utility::extract_bound_expression(isl_ast_node_if_get_else(node), dim, upper);
-            result = tiramisu::expr(tiramisu::o_select, cond_bound, then_bound, else_bound);
-            // ERROR("If Then Else is unsupported in bound extraction.", true);
+            // else_bound = utility::extract_bound_expression(isl_ast_node_if_get_else(node), dim, upper);
+            // result = tiramisu::expr(tiramisu::o_s, cond_bound, then_bound, else_bound);
+            ERROR("If Then Else is unsupported in bound extraction.", true);
         }
         else
-            result = then_bound;
+            result = then_bound; //tiramisu::expr(tiramisu::o_cond, cond_bound, then_bound);
     }
 
     DEBUG(3, tiramisu::str_dump("Extracted bound:"); result.dump(false));
@@ -4926,6 +5022,7 @@ tiramisu::expr utility::extract_bound_expression(isl_ast_node *node, int dim, bo
 
     return result;
 }
+
 
 int computation::compute_maximal_AST_depth()
 {
@@ -5001,7 +5098,7 @@ int computation::compute_maximal_AST_depth()
  */
 tiramisu::expr utility::get_bound(isl_set *set, int dim, int upper)
 {
-    std::cout << "\n\nCalling get bound on dimension " << dim <<" for " << upper << "\n" << std::flush;
+    // std::cout << "\n\nCalling get bound on dimension " << dim << "\n" << std::flush;
 
     DEBUG_FCT_NAME(10);
     DEBUG_INDENT(4);
@@ -5017,6 +5114,10 @@ tiramisu::expr utility::get_bound(isl_set *set, int dim, int upper)
                                  isl_set_to_str(set)));
 
 
+    // tiramisu::str_dump(std::string("Getting the ") + (upper ? "upper" : "lower") +
+    //                     " bound on the dimension " +
+    //                     std::to_string(dim) + " of the set ",
+    //                      isl_set_to_str(set));
 
     tiramisu::expr e = tiramisu::expr();
     isl_ast_build *ast_build;
@@ -5071,7 +5172,7 @@ tiramisu::expr utility::get_bound(isl_set *set, int dim, int upper)
     isl_ast_node *node = isl_ast_build_node_from_schedule_map(ast_build, isl_union_map_from_map(map));
 
 
-    std::cout << "\n" << isl_ast_node_to_C_str(node) <<"\n" << std::flush;
+    // std::cout << "\n" << isl_ast_node_to_C_str(node) <<"\n" << std::flush;
 
     e = utility::extract_bound_expression(node, dim, upper);
     isl_ast_build_free(ast_build);
@@ -5081,10 +5182,12 @@ tiramisu::expr utility::get_bound(isl_set *set, int dim, int upper)
     DEBUG_INDENT(-4);
 
 
-    std::cout << "Result of get bound is : " << e.to_str() << std::flush;
+    // std::cout << "Result of get bound is : " << e.to_str() << std::flush;
 
     return e;
 }
+
+
 
 bool computation::separateAndSplit(tiramisu::var L0, int sizeX)
 {
@@ -7882,9 +7985,9 @@ isl_set* computation::construct_comm_set(isl_set* set, rank_t rank_type, int com
     return isl_set_set_tuple_name(set, get_comm_id(rank_type, comm_id).c_str());
 }
 
-std::unordered_map<std::string, isl_set*> computation::compute_needed_sets(){
+std::unordered_map<std::string, isl_set*> computation::compute_needed_sets(rank_t rank_type){
     //construct distribution map of the receiver
-    isl_map* receiver_dist_map = construct_distribution_map(rank_t::r_receiver);
+    isl_map* receiver_dist_map = construct_distribution_map(rank_type);
 
     //Find the set that needs to be computed by the receiver
     isl_set* receiver_to_compute_set = isl_set_apply(isl_set_copy(this->get_trimmed_time_processor_domain()), receiver_dist_map);
@@ -7923,7 +8026,7 @@ std::unordered_map<std::string, isl_set*> computation::compute_needed_sets(){
 }
 
 std::unordered_map<std::string, isl_set*> computation::compute_owned_sets(
-                            std::unordered_map<std::string, isl_set*> needed_sets)
+                            std::unordered_map<std::string, isl_set*> needed_sets, rank_t rank_type)
 {
     std::unordered_map<std::string, isl_set*> sender_owned;
 
@@ -7931,7 +8034,7 @@ std::unordered_map<std::string, isl_set*> computation::compute_owned_sets(
         //get computation
         computation* producer = get_function()->get_computation_by_name(needed_set.first)[0];
         //construct distribution map of the receiver
-        isl_map* producer_map = producer->construct_distribution_map(rank_t::r_sender);
+        isl_map* producer_map = producer->construct_distribution_map(rank_type);
         isl_set* producer_to_compute_set = isl_set_apply(isl_set_copy(producer->get_trimmed_time_processor_domain()), producer_map);
         sender_owned.insert({needed_set.first, producer_to_compute_set});
     }
@@ -7942,65 +8045,21 @@ std::unordered_map<std::string, isl_set*> computation::compute_owned_sets(
 
 std::unordered_map<std::string, isl_set*> computation::construct_exchange_sets()
 {
-    //construct distribution map of the receiver
-    isl_map* receiver_dist_map = construct_distribution_map(rank_t::r_receiver);
-
-    //Find the set that needs to be computed by the receiver
-    isl_set* receiver_to_compute_set = isl_set_apply(isl_set_copy(this->get_trimmed_time_processor_domain()), receiver_dist_map);
-
     //Find the receiver's needed_sets
     std::vector<isl_map*> rhs_accesses;
     generator::get_rhs_accesses(this->get_function(), this, rhs_accesses, false);
 
     //map computation name to the receiver needed set of that computation
-    std::unordered_map <std::string, isl_set*> receiver_needed;
-
-    for (isl_map* rhs_access : rhs_accesses) {
-        //an access has the following structure [params]->{consumer[dims]->producer[dims]:constraints}
-        //consumer is the current computation
-        //get the name of the producer
-        std::string comp_name = isl_map_get_tuple_name(rhs_access, isl_dim_out);
-        //apply schedule to consumer
-        rhs_access = isl_map_apply_domain(rhs_access, isl_map_copy(get_trimmed_union_of_schedules()));
-        //apply schedule to producer
-        computation* producer = get_function()->get_computation_by_name(comp_name)[0];
-        rhs_access = isl_map_apply_range(rhs_access, isl_map_copy(producer->get_trimmed_union_of_schedules()));
-        //tiramisu::str_dump("rhs_access after applying schedule ");isl_map_dump(rhs_access);
-        //apply rhs_access
-        isl_set* needed_set = isl_set_apply(isl_set_copy(receiver_to_compute_set), rhs_access);
-        //check if it should do communication on it
-        if(producer->get_distributed_dimension()!=-1){
-            if (receiver_needed.find(comp_name) != receiver_needed.end())
-                receiver_needed[comp_name] = isl_set_coalesce(isl_set_union(receiver_needed[comp_name], needed_set));
-            else
-                receiver_needed.insert({comp_name, needed_set});
-        }else {
-            DEBUG(3, "Computation " + comp_name + "isn't distributed, no communication needed");
-        }
-    }
+    std::unordered_map <std::string, isl_set*> receiver_needed
+                                = compute_needed_sets(rank_t::r_receiver);
 
     //receiver's owned_sets
-    std::unordered_map<std::string,isl_set*> receiver_owned;
-    for (auto needed_set : receiver_needed)
-    {
-        //get computation
-        computation* producer = get_function()->get_computation_by_name(needed_set.first)[0];
-        //construct distribution map of the receiver
-        isl_map* producer_map = producer->construct_distribution_map(rank_t::r_receiver);
-        isl_set* producer_to_compute_set = isl_set_apply(isl_set_copy(producer->get_trimmed_time_processor_domain()), producer_map);
-        receiver_owned.insert({needed_set.first, producer_to_compute_set});
-    }
+    std::unordered_map<std::string,isl_set*> receiver_owned
+                    = compute_owned_sets(receiver_needed, rank_t::r_receiver);
 
     //sender's owned set
-    std::unordered_map<std::string,isl_set*> sender_owned;
-    for (auto needed_set : receiver_needed) {
-        //get computation
-        computation* producer = get_function()->get_computation_by_name(needed_set.first)[0];
-        //construct distribution map of the receiver
-        isl_map* producer_map = producer->construct_distribution_map(rank_t::r_sender);
-        isl_set* producer_to_compute_set = isl_set_apply(isl_set_copy(producer->get_trimmed_time_processor_domain()), producer_map);
-        sender_owned.insert({needed_set.first, producer_to_compute_set});
-    }
+    std::unordered_map<std::string,isl_set*> sender_owned
+                    = compute_owned_sets(receiver_needed, rank_t::r_sender);
 
     //The sets that need to be sent from r_sender -> r_receiver
     //sender_owned intersect (receiver_needed - receiver_owned)
@@ -8013,126 +8072,136 @@ std::unordered_map<std::string, isl_set*> computation::construct_exchange_sets()
     return to_exchange_sets;
 }
 
-std::string get_shift(isl_set *set, int dim){
-    tiramisu::expr e = tiramisu::utility::get_bound(set, dim, false);
+std::string get_shift(isl_set *set, int dim)
+{
 
-    std::cout << "Dumping shift found : " << e.to_str() << std::flush;
+    isl_basic_set* simple_hull = isl_set_simple_hull(set);
+
+    tiramisu::expr e = tiramisu::utility::get_bound(isl_set_from_basic_set(simple_hull), dim, false);
+
     return e.to_str();
 }
 
-void computation::gen_communication_code(isl_set* set, int comm_id, std::string comp_name,
+void computation::gen_communication_code(isl_set* listset, std::string comp_name,
     std::string shift_send, std::string shift_rcv)
 {
+    int comm_id = id_counter++;
 
-    //go global index
-    //1- get the schedule of the computation, reverse it
-    computation *producer = get_function()->get_computation_by_name(comp_name)[0];
-    isl_map *sched = producer->get_trimmed_union_of_schedules();
-    sched = isl_map_reverse(sched);
+    isl_basic_set_list *bset_list = isl_set_get_basic_set_list(isl_set_copy(listset));
 
-    //2- apply schedule
-    isl_set *global_set = isl_set_apply(isl_set_copy(set), sched);
+    for(int iset = 0; iset < isl_set_n_basic_set(listset); iset++){
 
-    //3- construct communication set
-    isl_set* recv_iter_dom = construct_comm_set(isl_set_copy(global_set), rank_t::r_receiver, comm_id);
-    isl_set* send_iter_dom = construct_comm_set(global_set, rank_t::r_sender, comm_id);
+        isl_basic_set *bset = isl_basic_set_list_get_basic_set(isl_basic_set_list_copy(bset_list), iset);
+        isl_set* set = isl_set_from_basic_set(bset);
+        //go global index
+        //1- get the schedule of the computation, reverse it
+        computation *producer = get_function()->get_computation_by_name(comp_name)[0];
+        isl_map *sched = producer->get_trimmed_union_of_schedules();
+        sched = isl_map_reverse(sched);
 
-    computation *c = get_function()->get_computation_by_name(this->get_name())[0];
+        //2- apply schedule
+        isl_set *global_set = isl_set_apply(isl_set_copy(set), sched);
 
-    //creating access_variables
-    var r_snd(get_rank_string_type(rank_t::r_sender).c_str());
-    var r_rcv(get_rank_string_type(rank_t::r_receiver).c_str());
+        //3- construct communication set
+        isl_set* recv_iter_dom = construct_comm_set(isl_set_copy(global_set), rank_t::r_receiver, comm_id);
+        isl_set* send_iter_dom = construct_comm_set(global_set, rank_t::r_sender, comm_id);
 
-    //creating new iterators
-    std::vector<tiramisu::expr> iterators;
-    int idx = 2;
-    while (idx < isl_set_dim(recv_iter_dom,isl_dim_set) ) {
-        std::string name = generate_new_variable_name();
-        recv_iter_dom = isl_set_set_dim_name(recv_iter_dom, isl_dim_set, idx, name.c_str());
-        send_iter_dom = isl_set_set_dim_name(send_iter_dom, isl_dim_set, idx, name.c_str());
-        iterators.push_back(var(name));
-        idx++;
+        computation *c = get_function()->get_computation_by_name(this->get_name())[0];
+
+        //creating access_variables
+        var r_snd(get_rank_string_type(rank_t::r_sender).c_str());
+        var r_rcv(get_rank_string_type(rank_t::r_receiver).c_str());
+
+        //creating new iterators
+        std::vector<tiramisu::expr> iterators;
+        int idx = 2;
+        while (idx < isl_set_dim(recv_iter_dom,isl_dim_set) ) {
+            std::string name = generate_new_variable_name();
+            recv_iter_dom = isl_set_set_dim_name(recv_iter_dom, isl_dim_set, idx, name.c_str());
+            send_iter_dom = isl_set_set_dim_name(send_iter_dom, isl_dim_set, idx, name.c_str());
+            iterators.push_back(var(name));
+            idx++;
+        }
+
+        //creating access
+        tiramisu::expr access = tiramisu::expr(op_t::o_access, comp_name,iterators,
+        get_function()->get_computation_by_name(comp_name)[0]->get_data_type());
+
+        auto data_type = get_function()->get_computation_by_name(comp_name)[0]->get_data_type();
+
+        std::string it_string = "";
+        for (int i = 0; i < iterators.size(); i++)
+        {
+            it_string += iterators[i].get_name();
+            if(i < iterators.size() - 1) it_string += ',';
+        }
+
+        std::string map_string = "{" + get_comm_id(rank_t::r_sender, comm_id) + "[" + get_rank_string_type(rank_t::r_sender)
+        + "," + get_rank_string_type(rank_t::r_receiver) + "," + it_string + "]->" + get_comm_id(rank_t::r_sender, comm_id);
+        map_string += "[ "+ get_rank_string_type(rank_t::r_sender)
+        + "," + get_rank_string_type(rank_t::r_receiver) + "," + "-" + shift_send + "+" +it_string + "]}";
+
+        isl_map* map_shift_send = isl_map_read_from_str(isl_set_get_ctx(send_iter_dom), map_string.c_str());
+
+        send_iter_dom = isl_set_apply(send_iter_dom, map_shift_send);
+
+        send_iter_dom = isl_set_set_dim_name(send_iter_dom, isl_dim_set, 0, (get_rank_string_type(rank_t::r_sender)).c_str());
+        send_iter_dom = isl_set_set_dim_name(send_iter_dom, isl_dim_set, 1, (get_rank_string_type(rank_t::r_receiver)).c_str());
+
+        for (int i = 0; i < iterators.size(); i++)
+        {
+            send_iter_dom = isl_set_set_dim_name(send_iter_dom, isl_dim_set, 2 + i, iterators[i].get_name().c_str());
+        }
+
+        xfer data_transfer = computation::create_xfer(
+            isl_set_to_str(send_iter_dom),
+            isl_set_to_str(recv_iter_dom),
+            r_rcv, r_snd,
+            xfer_prop(data_type, {MPI, BLOCK, ASYNC}),
+            xfer_prop(data_type, {MPI, BLOCK, ASYNC}),
+            access, get_function());
+
+        data_transfer.s->tag_distribute_level(r_snd);
+        data_transfer.r->tag_distribute_level(r_rcv);
+
+        //schedule communications
+        assert(this->get_function()->sched_graph_reversed[this].size() <= 1 &&
+                "Node has more than one predecessor.");
+
+        //if predecessor
+        if(this->get_predecessor() != nullptr)
+        {
+             //get level
+            int level = this->get_function()->sched_graph_reversed[this][this->get_predecessor()] ;
+            //clear
+            computation *pred = this->get_predecessor();
+            data_transfer.s->between(*pred, level, *c, level);
+            data_transfer.r->between(*data_transfer.s, level, *c, level);
+        }
+        else
+        {
+            DEBUG(3, tiramisu::str_dump("Communication of "+ this->get_name()+" has no predecessor"));
+            data_transfer.s->before(*data_transfer.r, computation::root);
+            data_transfer.r->before(*c, computation::root);
+        }
+
+        std::string access_string = "{" + get_comm_id(rank_t::r_receiver,comm_id) + "[" + get_rank_string_type(rank_t::r_receiver)
+        + "," + get_rank_string_type(rank_t::r_sender) + "," + it_string + "]->" +
+        isl_map_get_tuple_name(get_function()->get_computation_by_name(comp_name)[0]->get_access_relation(), isl_dim_out);
+        access_string += "[-" + shift_rcv + "+" +it_string + "]}";
+
+        data_transfer.r->set_access(access_string);
+
     }
-
-    //creating access
-    tiramisu::expr access = tiramisu::expr(op_t::o_access, comp_name,iterators,
-    get_function()->get_computation_by_name(comp_name)[0]->get_data_type());
-
-    auto data_type = get_function()->get_computation_by_name(comp_name)[0]->get_data_type();
-
-    std::string it_string = "";
-    for (int i = 0; i < iterators.size(); i++)
-    {
-        it_string += iterators[i].get_name();
-        if(i < iterators.size() - 1) it_string += ',';
-    }
-
-    std::string map_string = "{" + get_comm_id(rank_t::r_sender, comm_id) + "[" + get_rank_string_type(rank_t::r_sender)
-    + "," + get_rank_string_type(rank_t::r_receiver) + "," + it_string + "]->" + get_comm_id(rank_t::r_sender, comm_id);
-    map_string += "[ "+ get_rank_string_type(rank_t::r_sender)
-    + "," + get_rank_string_type(rank_t::r_receiver) + "," + "-" + shift_send + "+" +it_string + "]}";
-
-    isl_map* map_shift_send = isl_map_read_from_str(isl_set_get_ctx(send_iter_dom), map_string.c_str());
-
-    send_iter_dom = isl_set_apply(send_iter_dom, map_shift_send);
-
-    send_iter_dom = isl_set_set_dim_name(send_iter_dom, isl_dim_set, 0, (get_rank_string_type(rank_t::r_sender)).c_str());
-    send_iter_dom = isl_set_set_dim_name(send_iter_dom, isl_dim_set, 1, (get_rank_string_type(rank_t::r_receiver)).c_str());
-
-    for (int i = 0; i < iterators.size(); i++)
-    {
-        send_iter_dom = isl_set_set_dim_name(send_iter_dom, isl_dim_set, 2 + i, iterators[i].get_name().c_str());
-    }
-
-    xfer data_transfer = computation::create_xfer(
-        isl_set_to_str(send_iter_dom),
-        isl_set_to_str(recv_iter_dom),
-        r_rcv, r_snd,
-        xfer_prop(data_type, {MPI, BLOCK, ASYNC}),
-        xfer_prop(data_type, {MPI, BLOCK, ASYNC}),
-        access, get_function());
-
-    data_transfer.s->tag_distribute_level(r_snd);
-    data_transfer.r->tag_distribute_level(r_rcv);
-    //
-    //schedule communications
-    assert(this->get_function()->sched_graph_reversed[this].size() <= 1 &&
-            "Node has more than one predecessor.");
-
-    //if predecessor
-    if(this->get_predecessor() != nullptr)
-    {
-         //get level
-        int level = this->get_function()->sched_graph_reversed[this][this->get_predecessor()] ;
-        //clear
-        computation *pred = this->get_predecessor();
-        data_transfer.s->between(*pred, level, *c, level);
-        data_transfer.r->between(*data_transfer.s, level, *c, level);
-    }
-    else
-    {
-        DEBUG(3, tiramisu::str_dump("Communication of "+ this->get_name()+" has no predecessor"));
-        data_transfer.s->before(*data_transfer.r, computation::root);
-        data_transfer.r->before(*c, computation::root);
-    }
-
-    std::string access_string = "{" + get_comm_id(rank_t::r_receiver,comm_id) + "[" + get_rank_string_type(rank_t::r_receiver)
-    + "," + get_rank_string_type(rank_t::r_sender) + "," + it_string + "]->" +
-    isl_map_get_tuple_name(get_function()->get_computation_by_name(comp_name)[0]->get_access_relation(), isl_dim_out);
-    access_string += "[-" + shift_rcv + "+" +it_string + "]}";
-
-    data_transfer.r->set_access(access_string);
-
 }
 
 void computation::gen_communication()
 {
-    int comm_id = 0;
 
     //Sets that needs to be exchanged between ranks sender, receiver
     std::unordered_map<std::string, isl_set*>  to_receive_sets = construct_exchange_sets();
-    std::unordered_map<std::string, isl_set*>  needed_sets = compute_needed_sets();
-    std::unordered_map<std::string, isl_set*>  owned_sets = compute_owned_sets(needed_sets);
+    std::unordered_map<std::string, isl_set*>  needed_sets = compute_needed_sets(rank_t::r_receiver);
+    std::unordered_map<std::string, isl_set*>  owned_sets = compute_owned_sets(needed_sets, rank_t::r_sender);
 
     for (auto set : to_receive_sets)
     {
@@ -8141,16 +8210,17 @@ void computation::gen_communication()
         isl_map *sched = producer->get_trimmed_union_of_schedules();
         sched = isl_map_reverse(sched);
 
-        //2- apply schedule
+        // 2- apply schedule
         isl_set *global_set_need = isl_set_apply(isl_set_copy(needed_sets[set.first]), isl_map_copy(sched));
+
         std::string shift_rcv = get_shift(global_set_need, 0);
 
         isl_set *global_set_owned = isl_set_apply(isl_set_copy(owned_sets[set.first]), isl_map_copy(sched));
+
         std::string shift_send = get_shift(global_set_owned, 0);
 
-        gen_communication_code(set.second, comm_id, set.first, shift_send, shift_rcv);
+        gen_communication_code(set.second, set.first, shift_send, shift_rcv);
 
-        comm_id++;
     }
 }
 

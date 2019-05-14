@@ -21,6 +21,8 @@ int main(int argc, char* argv[])
 
     input Img("Img", {in, jn, c}, p_int32);
 
+    // computation R("R", {ir, jr, c}, Img(ir,jr,c));
+
     computation R("R", {ir, jr, c}, (Img(ir, jr, c) + Img(ir, jr+1, c) + Img(ir, jr+2, c) +
 				   Img(ir+1, jr, c) + Img(ir+1, jr+2, c)+ Img(ir+2, jr, c) + Img(ir+2, jr+1, c)
                    + Img(ir+2, jr+2, c))/((int32_t) 8));
@@ -53,6 +55,7 @@ int main(int argc, char* argv[])
 
     border_comm_Img.s ->before(*border_comm_Img.r , computation::root);
     border_comm_Img.r ->before(R, computation::root);
+    
 
     xfer border_comm_R = computation::create_xfer(
     "[NODES,COLS]->{border_comm_R_send[s,ii,jj,kk]: 1<=s<NODES and 0<=ii<2 and 0<=jj<COLS and 0<=kk<3}",
@@ -60,7 +63,7 @@ int main(int argc, char* argv[])
     s-1,
     r+1,
     xfer_prop(p_int32, {MPI, BLOCK, ASYNC}), xfer_prop(p_int32, {MPI, BLOCK, ASYNC}),
-    Img(ii, jj, kk), edge);
+    R(ii, jj, kk), edge);
 
     border_comm_R.s->tag_distribute_level(s);
     border_comm_R.r->tag_distribute_level(r);

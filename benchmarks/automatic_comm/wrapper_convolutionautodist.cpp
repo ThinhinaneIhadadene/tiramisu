@@ -32,7 +32,7 @@ int main(int, char**)
     MPI_Barrier(MPI_COMM_WORLD);
     convolutionautodist_tiramisu(input.raw_buffer(), kernel.raw_buffer(), output1.raw_buffer());
 
-    for (int i = 0; i < NB_TESTS; i++)
+    for (int nb = 0; nb < NB_TESTS; nb++)
     {
         MPI_Barrier(MPI_COMM_WORLD);
 
@@ -66,7 +66,7 @@ int main(int, char**)
     MPI_Barrier(MPI_COMM_WORLD);
     convolutionautodist_ref(input.raw_buffer(), kernel.raw_buffer(), output2.raw_buffer());
 
-    for (int i=0; i<NB_TESTS; i++)
+    for (int nb=0; nb<NB_TESTS; nb++)
     {
         MPI_Barrier(MPI_COMM_WORLD);
 

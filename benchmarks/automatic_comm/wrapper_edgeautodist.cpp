@@ -30,16 +30,17 @@ int main(int, char**)
     {
         for(int j = 0; j < _COLS; j++)
         {
-            for(int k = 0 ; k < 3; k++) Img1(k,j,i) = 1 + rank;
+            for(int k = 0 ; k < 3; k++)
+                Img1(k,j,i) = i + j + k + rank;
         }
 
     }
 
-    edgeautodist_tiramisu(Img1.raw_buffer(), output1.raw_buffer());
+    edgeautodist_ref(Img1.raw_buffer(), output1.raw_buffer());
 
     MPI_Barrier(MPI_COMM_WORLD);
 
-    for (int i = 0; i < NB_TESTS; i++)
+    for (int nb = 0; nb < NB_TESTS; nb++)
     {
         MPI_Barrier(MPI_COMM_WORLD);
 
@@ -49,7 +50,8 @@ int main(int, char**)
         {
             for(int j = 0; j < _COLS; j++)
             {
-                for(int k = 0 ; k < 3; k++) Img1(k,j,i) = 1 + rank;
+                for(int k = 0 ; k < 3; k++)
+                    Img1(k,j,i) = i + j + k + rank;
             }
 
         }
@@ -57,7 +59,7 @@ int main(int, char**)
         MPI_Barrier(MPI_COMM_WORLD);
 
         auto start1 = std::chrono::high_resolution_clock::now();
-        edgeautodist_tiramisu(Img1.raw_buffer(), output1.raw_buffer());
+        edgeautodist_ref(Img1.raw_buffer(), output1.raw_buffer());
 
         MPI_Barrier(MPI_COMM_WORLD);
 
@@ -74,14 +76,15 @@ int main(int, char**)
     {
         for(int j = 0; j < _COLS; j++)
         {
-            for(int k = 0 ; k < 3; k++) Img2(k,j,i) = 1 + rank;
+            for(int k = 0 ; k < 3; k++)
+                Img2(k,j,i) = i + j + k + rank;
         }
 
     }
 
-    edgeautodist_ref(Img2.raw_buffer(), output2.raw_buffer());
+    edgeautodist_tiramisu(Img2.raw_buffer(), output2.raw_buffer());
 
-    for (int i = 0; i < NB_TESTS; i++)
+    for (int nb = 0; nb < NB_TESTS; nb++)
     {
         MPI_Barrier(MPI_COMM_WORLD);
 
@@ -92,14 +95,15 @@ int main(int, char**)
         {
             for(int j = 0; j < _COLS; j++)
             {
-                for(int k = 0 ; k < 3; k++) Img2(k,j,i) = 1 + rank;
+                for(int k = 0 ; k < 3; k++)
+                    Img2(k,j,i) = i + j + k + rank;
             }
 
         }
         MPI_Barrier(MPI_COMM_WORLD);
 
         auto start1 = std::chrono::high_resolution_clock::now();
-        edgeautodist_ref(Img2.raw_buffer(), output2.raw_buffer());
+        edgeautodist_tiramisu(Img2.raw_buffer(), output2.raw_buffer());
 
         MPI_Barrier(MPI_COMM_WORLD);
         auto end1 = std::chrono::high_resolution_clock::now();
@@ -108,14 +112,24 @@ int main(int, char**)
     }
     MPI_Barrier(MPI_COMM_WORLD);
 
-    compare_buffers_approximately("edgeautodist rank " + std::to_string(rank), Img1, Img2);
+    for(int i = 0; i < _ROWS/_NODES - 2; i++)
+    {
+        for(int j = 0; j < _COLS - 2; j++)
+        {
+            for(int k = 0 ; k < 3; k++)
+                if(Img1(k,j,i)!= Img2(k,j,i)) std::cout <<"\nError\n"<<std::flush;
+        }
+
+    }
+
+    //compare_buffers_approximately("edgeautodist rank " + std::to_string(rank), Img1, Img2);
 
     MPI_Barrier(MPI_COMM_WORLD);
-    if (rank == 0) {
-        print_time("performance_CPU.csv", "edgeDetect",
-                   {"Tiramisu auto", "Tiramisu man"},
-                   {median(duration_vector_1), median(duration_vector_2)});
-    }
+    // if (rank == 0) {
+    //     print_time("performance_CPU.csv", "edgeDetect",
+    //                {"Tiramisu auto", "Tiramisu man"},
+    //                {median(duration_vector_1), median(duration_vector_2)});
+    // }
 
     tiramisu_MPI_cleanup();
 

@@ -106,8 +106,8 @@ int main(int argc, char **argv)
     heat3d_init.store_in(&b_out,{t_in,z_in+1,y_in,x_in});
     heat3dc.store_in(&b_out,{t,z+1,y,x});
 
-    heat3d_init.gen_communication();
-    heat3dc.gen_communication();
+    // heat3d_init.gen_communication();
+    // heat3dc.gen_communication();
 
     // v.store_in(&b_out);
     // send_previous_left.r->set_access("{border_recv_pleft[t,r,k,j,i]->b_out[t-1,k,j,i]}");

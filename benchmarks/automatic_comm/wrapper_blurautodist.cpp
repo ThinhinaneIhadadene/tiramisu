@@ -1,3 +1,8 @@
+/**
+CHECK_CORRECTNESS ok
+The benchmark was verified and works fine
+**/
+
 #include "wrapper_blurautodist.h"
 #include "Halide.h"
 
@@ -23,7 +28,7 @@ int main() {
   init_buffer(input, (uint32_t)0);
   for (int r = 0; r < _ROWS/_NODES; r++) {
     for (int c = 0; c < _COLS+2; c++) {
-      input(c,r) = r + c;
+      input(c,r) = r + c + rank;
     }
   }
   init_buffer(output, (uint32_t)0);
