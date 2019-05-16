@@ -2403,12 +2403,30 @@ private:
       * Currently, this process works for programs that distribute the outermost loop.
       */
     void gen_communication_code(isl_set* set, std::string computation_name,
-                                    std::string shift_send, std::string shift_rcv);
+                                    tiramisu::expr shift_send, tiramisu::expr shift_rcv);
+
+
+    std::unordered_map<int, int> map_splitted_original_dims;
+
+    void update_splitted_original_dims(int original_dim, std::vector<int> dim_levels);
+
+    int get_original_of_splitted(int dim);
 
 protected:
 
+    /**
+      *  In a distributed communication, running ranks, can either send data or receive it,
+      *  Given the type of a rank, we generate all the sets of data needed by a rank
+      *  Note that it's one parametric set for each computation being read
+      */
     std::unordered_map<std::string, isl_set*> compute_needed_sets(rank_t rank_type);
 
+
+    /**
+      *  In a distributed communication, running ranks, can either send data or receive it,
+      *  Given the type of a rank, we generate all the sets of data owned by a rank
+      *  Note that it's one parametric set for each computation used
+      */
     std::unordered_map<std::string, isl_set*> compute_owned_sets(
                         std::unordered_map<std::string, isl_set*> needed_sets, rank_t rank_type);
 

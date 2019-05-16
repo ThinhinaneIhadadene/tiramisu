@@ -5329,6 +5329,34 @@ void computation::split(tiramisu::var L0_var, int sizeX)
     DEBUG_INDENT(-4);
 }
 
+void computation::update_splitted_original_dims(int original_dim, std::vector<int> dim_levels)
+{
+    int splitted_dim1 = dim_levels[0];
+    int splitted_dim2 = dim_levels[1];
+
+    if(map_splitted_original_dims.find(original_dim) != map_splitted_original_dims.end())
+    {
+        //original was splitted before
+        int original = map_splitted_original_dims[original_dim];
+        map_splitted_original_dims.insert({splitted_dim1, original});
+        map_splitted_original_dims.insert({splitted_dim2, original});
+    }
+    else //original never splitted
+    {
+        map_splitted_original_dims.insert({splitted_dim1, original_dim});
+        map_splitted_original_dims.insert({splitted_dim2, original_dim});
+    }
+}
+
+int computation::get_original_of_splitted(int dim)
+{
+    if(map_splitted_original_dims.find(dim) != map_splitted_original_dims.end()){
+        return map_splitted_original_dims[dim];
+    }
+    else //original never splitted
+        return dim;
+}
+
 void computation::split(tiramisu::var L0_var, int sizeX,
         tiramisu::var L0_outer, tiramisu::var L0_inner)
 {
@@ -5336,6 +5364,8 @@ void computation::split(tiramisu::var L0_var, int sizeX,
     DEBUG_INDENT(4);
 
     assert(L0_var.get_name().length() > 0);
+
+
 
     std::vector<std::string> original_loop_level_names =
         this->get_loop_level_names();
@@ -5349,6 +5379,11 @@ void computation::split(tiramisu::var L0_var, int sizeX,
     this->split(L0, sizeX);
 
     this->update_names(original_loop_level_names, {L0_outer.get_name(), L0_inner.get_name()}, L0, 1);
+
+    //stores a mapping for the newDim -> original
+    //used in Automatic communication
+    this->update_splitted_original_dims(L0,
+                get_loop_level_numbers_from_dimension_names({L0_outer.get_name(), L0_inner.get_name()}));
 
     DEBUG_INDENT(-4);
 }
@@ -7895,14 +7930,13 @@ isl_map* computation::construct_distribution_map(tiramisu::rank_t rank_type)
     if (distributed_dimension == -1)
         ERROR("Computation " + this->get_name() + "isn't tagged distributed and used gen_communication().",true);
 
-    if(distributed_dimension > 0)
-        ERROR("Generating communication code automatically for inner distributed loops is currently not supported.",true);
+    // if(distributed_dimension > 0)
+    //     ERROR("Generating communication code automatically for inner distributed loops is currently not supported.",true);
 
     //get the extent of the distributed loop, the number od available ranks should be equal to it
     this->simplify(this->get_iteration_domain());
     isl_set * it_dom = this->get_trimmed_time_processor_domain();
     project_out_static_dimensions(it_dom);
-    // int number_of_ranks = tiramisu::utility::get_extent(it_dom, distributed_dimension);
 
     int number_of_ranks = global::get_number_of_ranks();
 
@@ -8072,18 +8106,15 @@ std::unordered_map<std::string, isl_set*> computation::construct_exchange_sets()
     return to_exchange_sets;
 }
 
-std::string get_shift(isl_set *set, int dim)
+tiramisu::expr get_shift(isl_set *set, int dim)
 {
-
     isl_basic_set* simple_hull = isl_set_simple_hull(set);
 
-    tiramisu::expr e = tiramisu::utility::get_bound(isl_set_from_basic_set(simple_hull), dim, false);
-
-    return e.to_str();
+    return tiramisu::utility::get_bound(isl_set_from_basic_set(simple_hull), dim, false);
 }
 
 void computation::gen_communication_code(isl_set* listset, std::string comp_name,
-    std::string shift_send, std::string shift_rcv)
+    tiramisu::expr shift_send, tiramisu::expr shift_rcv)
 {
     int comm_id = id_counter++;
 
@@ -8139,7 +8170,7 @@ void computation::gen_communication_code(isl_set* listset, std::string comp_name
         std::string map_string = "{" + get_comm_id(rank_t::r_sender, comm_id) + "[" + get_rank_string_type(rank_t::r_sender)
         + "," + get_rank_string_type(rank_t::r_receiver) + "," + it_string + "]->" + get_comm_id(rank_t::r_sender, comm_id);
         map_string += "[ "+ get_rank_string_type(rank_t::r_sender)
-        + "," + get_rank_string_type(rank_t::r_receiver) + "," + "-" + shift_send + "+" +it_string + "]}";
+        + "," + get_rank_string_type(rank_t::r_receiver) + "," + "-" + shift_send.to_str() + "+" +it_string + "]}";
 
         isl_map* map_shift_send = isl_map_read_from_str(isl_set_get_ctx(send_iter_dom), map_string.c_str());
 
@@ -8188,7 +8219,7 @@ void computation::gen_communication_code(isl_set* listset, std::string comp_name
         std::string access_string = "{" + get_comm_id(rank_t::r_receiver,comm_id) + "[" + get_rank_string_type(rank_t::r_receiver)
         + "," + get_rank_string_type(rank_t::r_sender) + "," + it_string + "]->" +
         isl_map_get_tuple_name(get_function()->get_computation_by_name(comp_name)[0]->get_access_relation(), isl_dim_out);
-        access_string += "[-" + shift_rcv + "+" +it_string + "]}";
+        access_string += "[-" + shift_rcv.to_str() + "+" +it_string + "]}";
 
         data_transfer.r->set_access(access_string);
 
@@ -8213,11 +8244,14 @@ void computation::gen_communication()
         // 2- apply schedule
         isl_set *global_set_need = isl_set_apply(isl_set_copy(needed_sets[set.first]), isl_map_copy(sched));
 
-        std::string shift_rcv = get_shift(global_set_need, 0);
+        int distributed_dimension = this->get_distributed_dimension();
+        distributed_dimension = this->get_original_of_splitted(distributed_dimension);
+
+        tiramisu::expr shift_rcv = get_shift(global_set_need, 0);
 
         isl_set *global_set_owned = isl_set_apply(isl_set_copy(owned_sets[set.first]), isl_map_copy(sched));
 
-        std::string shift_send = get_shift(global_set_owned, 0);
+        tiramisu::expr shift_send = get_shift(global_set_owned, 0);
 
         gen_communication_code(set.second, set.first, shift_send, shift_rcv);
 
