@@ -12,7 +12,6 @@ int main(int argc, char **argv) {
     var i("i"), j("j"), i0("i0"), i1("i1"), ii("ii"), j0("j0"), j1("j1"), jj("jj"), p("p"), q("q");
 
     function blur("blurautodist0_ref");
-    blur.add_context_constraints("[COLS]->{:COLS = " + std::to_string(_COLS) + "}");
 
     constant ROWS("ROWS", expr((int32_t) _ROWS), p_int32, true, nullptr, 0, &blur);
     constant COLS("COLS", expr((int32_t) _COLS), p_int32, true, nullptr, 0, &blur);
