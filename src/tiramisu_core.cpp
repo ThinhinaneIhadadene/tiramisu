@@ -7975,6 +7975,8 @@ std::string computation::get_comm_id(rank_t rank_type, int i)
 
 isl_set* computation::construct_comm_set(isl_set* set, rank_t rank_type, int comm_id)
 {
+    std::cout << "\n set before construct communication_set\n" << std::flush;
+    isl_set_dump(set);
 
     set = isl_set_insert_dims(set, isl_dim_set, 0, 1);
     set = isl_set_insert_dims(set, isl_dim_set, 1, 1);
@@ -8016,7 +8018,10 @@ isl_set* computation::construct_comm_set(isl_set* set, rank_t rank_type, int com
     //Set the name of the set to:
     //If it's a send --> b_r_snd_compName_seqId
     //If it's a receiver --> b_r_rcv_compName_seqId
-    return isl_set_set_tuple_name(set, get_comm_id(rank_type, comm_id).c_str());
+    set = isl_set_set_tuple_name(set, get_comm_id(rank_type, comm_id).c_str());
+    std::cout << "\n set out construct communication_set\n" << std::flush;
+    isl_set_dump(set);
+    return set;
 }
 
 std::unordered_map<std::string, isl_set*> computation::compute_needed_sets(rank_t rank_type){
@@ -8160,19 +8165,40 @@ void computation::gen_communication_code(isl_set* listset, std::string comp_name
 
         auto data_type = get_function()->get_computation_by_name(comp_name)[0]->get_data_type();
 
+        int distributed_dimension = get_function()->get_computation_by_name(comp_name)[0]->get_distributed_dimension();
+        distributed_dimension =
+            get_function()->get_computation_by_name(comp_name)[0]->get_original_of_splitted(distributed_dimension);
+
         std::string it_string = "";
+        std::string it_string_original = "";
         for (int i = 0; i < iterators.size(); i++)
         {
+            it_string_original += iterators[i].get_name();
             it_string += iterators[i].get_name();
-            if(i < iterators.size() - 1) it_string += ',';
+            if(i == distributed_dimension)
+                it_string += "-" + shift_send.to_str();
+            if(i < iterators.size() - 1) {
+                it_string += ',';
+                it_string_original += ',';
+            }
         }
 
-        std::string map_string = "{" + get_comm_id(rank_t::r_sender, comm_id) + "[" + get_rank_string_type(rank_t::r_sender)
-        + "," + get_rank_string_type(rank_t::r_receiver) + "," + it_string + "]->" + get_comm_id(rank_t::r_sender, comm_id);
-        map_string += "[ "+ get_rank_string_type(rank_t::r_sender)
-        + "," + get_rank_string_type(rank_t::r_receiver) + "," + "-" + shift_send.to_str() + "+" +it_string + "]}";
+        std::cout << "\n it_string : " << it_string << std::flush;
 
+        //here's the mistake
+        std::string map_string = "{" + get_comm_id(rank_t::r_sender, comm_id) + "[" + get_rank_string_type(rank_t::r_sender)
+        + "," + get_rank_string_type(rank_t::r_receiver) + "," + it_string_original + "]->" + get_comm_id(rank_t::r_sender, comm_id);
+
+        std::cout << "\n map_string : " << map_string << std::flush;
+
+        map_string += "[ "+ get_rank_string_type(rank_t::r_sender)
+        + "," + get_rank_string_type(rank_t::r_receiver) + "," + it_string + "]}";
+
+
+        std::cout << "\n the map gotten is ";
         isl_map* map_shift_send = isl_map_read_from_str(isl_set_get_ctx(send_iter_dom), map_string.c_str());
+
+        isl_map_dump(map_shift_send);
 
         send_iter_dom = isl_set_apply(send_iter_dom, map_shift_send);
 
@@ -8216,10 +8242,19 @@ void computation::gen_communication_code(isl_set* listset, std::string comp_name
             data_transfer.r->before(*c, computation::root);
         }
 
+        it_string = "";
+        for (int i = 0; i < iterators.size(); i++)
+        {
+            it_string += iterators[i].get_name();
+            if(i == distributed_dimension)
+            it_string += "-" + shift_rcv.to_str();
+            if(i < iterators.size() - 1) it_string += ',';
+        }
+
         std::string access_string = "{" + get_comm_id(rank_t::r_receiver,comm_id) + "[" + get_rank_string_type(rank_t::r_receiver)
-        + "," + get_rank_string_type(rank_t::r_sender) + "," + it_string + "]->" +
+        + "," + get_rank_string_type(rank_t::r_sender) + "," + it_string_original + "]->" +
         isl_map_get_tuple_name(get_function()->get_computation_by_name(comp_name)[0]->get_access_relation(), isl_dim_out);
-        access_string += "[-" + shift_rcv.to_str() + "+" +it_string + "]}";
+        access_string += "[" + it_string + "]}";
 
         data_transfer.r->set_access(access_string);
 
@@ -8245,13 +8280,17 @@ void computation::gen_communication()
         isl_set *global_set_need = isl_set_apply(isl_set_copy(needed_sets[set.first]), isl_map_copy(sched));
 
         int distributed_dimension = this->get_distributed_dimension();
-        distributed_dimension = this->get_original_of_splitted(distributed_dimension);
 
-        tiramisu::expr shift_rcv = get_shift(global_set_need, 0);
+        std::cout <<   "Dist : " << distributed_dimension << "\n" << std::flush;
+        distributed_dimension = this->get_original_of_splitted(distributed_dimension);
+        std::cout <<   "Dist original : " << distributed_dimension << "\n" << std::flush;
+
+
+        tiramisu::expr shift_rcv = get_shift(global_set_need, distributed_dimension);
 
         isl_set *global_set_owned = isl_set_apply(isl_set_copy(owned_sets[set.first]), isl_map_copy(sched));
 
-        tiramisu::expr shift_send = get_shift(global_set_owned, 0);
+        tiramisu::expr shift_send = get_shift(global_set_owned, distributed_dimension);
 
         gen_communication_code(set.second, set.first, shift_send, shift_rcv);
 
