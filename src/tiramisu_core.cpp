@@ -8121,12 +8121,12 @@ tiramisu::expr get_shift(isl_set *set, int dim)
 void computation::gen_communication_code(isl_set* listset, std::string comp_name,
     tiramisu::expr shift_send, tiramisu::expr shift_rcv)
 {
-    int comm_id = id_counter++;
+    int comm_id = id_counter;
 
     isl_basic_set_list *bset_list = isl_set_get_basic_set_list(isl_set_copy(listset));
 
     for(int iset = 0; iset < isl_set_n_basic_set(listset); iset++){
-
+        comm_id = id_counter++;
         isl_basic_set *bset = isl_basic_set_list_get_basic_set(isl_basic_set_list_copy(bset_list), iset);
         isl_set* set = isl_set_from_basic_set(bset);
         //go global index
@@ -8183,22 +8183,22 @@ void computation::gen_communication_code(isl_set* listset, std::string comp_name
             }
         }
 
-        std::cout << "\n it_string : " << it_string << std::flush;
+        ///std::cout << "\n it_string : " << it_string << std::flush;
 
         //here's the mistake
         std::string map_string = "{" + get_comm_id(rank_t::r_sender, comm_id) + "[" + get_rank_string_type(rank_t::r_sender)
         + "," + get_rank_string_type(rank_t::r_receiver) + "," + it_string_original + "]->" + get_comm_id(rank_t::r_sender, comm_id);
 
-        std::cout << "\n map_string : " << map_string << std::flush;
+        //std::cout << "\n map_string : " << map_string << std::flush;
 
         map_string += "[ "+ get_rank_string_type(rank_t::r_sender)
         + "," + get_rank_string_type(rank_t::r_receiver) + "," + it_string + "]}";
 
 
-        std::cout << "\n the map gotten is ";
+        //std::cout << "\n the map gotten is ";
         isl_map* map_shift_send = isl_map_read_from_str(isl_set_get_ctx(send_iter_dom), map_string.c_str());
 
-        isl_map_dump(map_shift_send);
+        //isl_map_dump(map_shift_send);
 
         send_iter_dom = isl_set_apply(send_iter_dom, map_shift_send);
 
