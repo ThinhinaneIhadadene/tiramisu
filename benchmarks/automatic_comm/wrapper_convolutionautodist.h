@@ -5,9 +5,9 @@
 
 #define RADIUS 3
 #define _CHANNELS 3
-#define _ROWS 1600
+#define _ROWS 1800
 #define _COLS 1000
-#define _NODES 16
+#define _NODES 6
 
 #ifdef __cplusplus
 extern "C" {
@@ -17,6 +17,6 @@ int convolutionautodist_tiramisu(halide_buffer_t *_b_input_buffer, halide_buffer
 int convolutionautodist_ref(halide_buffer_t *_b_input_buffer, halide_buffer_t *kernel, halide_buffer_t *_b_output_buffer);
 
 #ifdef __cplusplus
-}  // extern "C"
+}
 #endif
 #endif

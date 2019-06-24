@@ -46,6 +46,7 @@ int main(int argc, char **argv)
     conv.drop_rank_iter(i01);
 
     var s("s"), r("r");
+
     xfer data_transfer = computation::create_xfer(
     "[NODES, ROWS,COLS,CHANNELS]->{data_send[s, x, y, c]: 1 <= s < NODES and 0 <= c < CHANNELS and 0 <= x < 2 and 0 <= y < COLS}",
     "[NODES, ROWS,COLS,CHANNELS]->{data_receive[r, x, y, c]: 0 <= r < NODES - 1 and 0 <= c < CHANNELS and 0 <= x < 2 and 0 <= y < COLS}",
@@ -66,9 +67,11 @@ int main(int argc, char **argv)
     buffer buff_kernel("buff_kernel", {kernel_extent_1, kernel_extent_0}, p_float32, a_input);
     buffer buff_convolution("buff_convolution", {_ROWS/_NODES, _COLS-8, _CHANNELS}, p_int32, a_output);
 
+
     in.store_in(&buff_input);
     conv.store_in(&buff_convolution);
     kernel.store_in(&buff_kernel);
+
 
     data_transfer.r->set_access("{data_receive[r, x, y, c]->buff_input[x + " + std::to_string(_ROWS/_NODES) + ", y, c]}");
 

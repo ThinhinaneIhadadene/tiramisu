@@ -58,6 +58,7 @@ int main(int argc, char **argv)
     conv.store_in(&buff_convolution);
     kernel.store_in(&buff_kernel);
 
+    //call automatique code generator
     conv.gen_communication();
 
     tiramisu::codegen({&buff_input, &buff_kernel, &buff_convolution} ,"build/generated_fct_convolutionautodist.o");
