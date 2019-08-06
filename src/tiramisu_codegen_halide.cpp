@@ -186,6 +186,7 @@ isl_ast_expr *create_isl_ast_index_expression(isl_ast_build *build,
     DEBUG_NO_NEWLINE(3, isl_pw_multi_aff_dump(iterator_map));
     DEBUG(3, tiramisu::str_dump("Access:", isl_map_to_str(access)));
     isl_pw_multi_aff *index_aff = isl_pw_multi_aff_from_map(isl_map_copy(access));
+    assert(index_aff != nullptr && "Affine expression extraction failed!");
     DEBUG_NO_NEWLINE(3, tiramisu::str_dump("index_aff = isl_pw_multi_aff_from_map(access): "));
     DEBUG_NO_NEWLINE(3, isl_pw_multi_aff_dump(index_aff));
     isl_space *model2 = isl_pw_multi_aff_get_space(isl_pw_multi_aff_copy(iterator_map));
@@ -3924,7 +3925,7 @@ void function::gen_halide_obj(const std::string &obj_file_name, Halide::Target::
             {
                     Halide::Target::AVX,
                     Halide::Target::SSE41,
-                    // Halide::Target::AVX2,
+                    //Halide::Target::AVX2,
                     Halide::Target::LargeBuffers
             };
 

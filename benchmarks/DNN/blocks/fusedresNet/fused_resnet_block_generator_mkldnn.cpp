@@ -280,21 +280,20 @@ void resnetBlock()
     net_fwd.push_back(conv2);
     net_fwd.push_back(bn2);
 
-    std::vector<std::chrono::duration<double, std::milli>> duration_vector_2;
+    std::vector<double> duration_vector;
     for (int i = 0; i < NB_TESTS; i++)
     {
-        auto start1 = std::chrono::high_resolution_clock::now();
+        double start = rtclock();
         stream(stream::kind::eager).submit(net_fwd).wait();
-        auto end1 = std::chrono::high_resolution_clock::now();
-        std::chrono::duration<double, std::milli> duration = end1 - start1;
-        duration_vector_2.push_back(duration);
+        double end = rtclock();
+        duration_vector.push_back((end - start) * 1000);
     }
-    std::cout << "\t\tMKL-DNN convolution duration"
-              << ": " << median(duration_vector_2) << "; " << std::endl;
+    std::cout << "\t\tMKL-DNN ResNet block duration "
+              << ": " << median(duration_vector) << "; " << std::endl;
 
     printf("writing result in file\n");
     ofstream resultfile;
-    resultfile.open("mkldnn_result.txt");
+    resultfile.open("mkl_result.txt");
 
     float *output = (float *)bn2_dst_memory.get_data_handle();
     for (size_t i = 0; i < BATCH_SIZE; ++i)
@@ -302,7 +301,7 @@ void resnetBlock()
             for (size_t k = 0; k < N; ++k)
                 for (size_t l = 0; l < N; ++l)
                 {
-                    resultfile << fixed << setprecision(2) << (float)((int)(output[i * 64 * N * N + j * N * N + k * N + l] * 1000) / 1000.0);
+                    resultfile << fixed << setprecision(10) << output[i * 64 * N * N + j * N * N + k * N + l];
                     resultfile << "\n";
                 }
     resultfile.close();

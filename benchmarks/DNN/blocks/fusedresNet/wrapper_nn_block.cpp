@@ -51,7 +51,8 @@ int main(int, char **)
     Halide::Buffer<double> mean(N, N, 64, BATCH_SIZE);
     Halide::Buffer<double> variance(N, N, 64, BATCH_SIZE);
 
-    std::vector<std::chrono::duration<double, std::milli>> duration_vector;
+    std::vector<double> duration_vector;
+
     srand(1);
     for (int n = 0; n < BATCH_SIZE; ++n)
         for (int z = 0; z < 3; ++z)
@@ -79,16 +80,16 @@ int main(int, char **)
 
     for (int i = 0; i < NB_TESTS; i++)
     {
-        auto start1 = std::chrono::high_resolution_clock::now();
+        double start = rtclock();
         fused_resnet_block(parameters.raw_buffer(), filter1.raw_buffer(),
                            filter2.raw_buffer(), input.raw_buffer(), padd1.raw_buffer(),
                            conv1.raw_buffer(), mean.raw_buffer(), variance.raw_buffer(),
                            bn1.raw_buffer(), padd2.raw_buffer(), conv2.raw_buffer(), bn2.raw_buffer());
-        auto end1 = std::chrono::high_resolution_clock::now();
-        std::chrono::duration<double, std::milli> duration = end1 - start1;
-        duration_vector.push_back(duration);
+        
+        double end = rtclock();
+        duration_vector.push_back((end - start) * 1000);
     }
-    std::cout << "\t\tTiramisu convolution duration"
+    std::cout << "\t\tTiramisu ResNet block duration "
               << ": " << median(duration_vector) << "; " << std::endl;
 
     std::ofstream resultfile;
@@ -99,7 +100,7 @@ int main(int, char **)
             for (int y = 0; y < N; ++y)
                 for (int x = 0; x < N; ++x)
                 {
-                    resultfile << fixed << setprecision(2) << (float)((int)(bn2(x, y, z, n) * 1000) / 1000.0);
+                    resultfile << fixed << setprecision(10) << bn2(x, y, z, n);
                     resultfile << "\n";
                 }
     resultfile.close();
@@ -107,7 +108,7 @@ int main(int, char **)
     std::cout << "\t\t Result"
               << ":\n\n";
 
-    std::ifstream infile1("tiramisu_result.txt"), infile2("mkldnn_result.txt");
+    std::ifstream infile1("tiramisu_result.txt"), infile2("mkl_result.txt");
     std::string line1, line2;
     float file_count = 0, corr = 0, f1, f2;
     
@@ -118,7 +119,7 @@ int main(int, char **)
         f1 = std::stof(line1);
         f2 = std::stof(line2);
 
-        if (abs(f1 - f2) < 0.02)
+        if (abs(f1 - f2) < 0.0001)
             corr += 1;
     }
 

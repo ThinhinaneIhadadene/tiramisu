@@ -21,8 +21,8 @@ int main(int, char **)
     Halide::Buffer<float> mean(N, N, FIn, BATCH_SIZE);
     Halide::Buffer<float> variance(N, N, FIn, BATCH_SIZE);
 
-    std::vector<std::chrono::duration<double, std::milli>> duration_vector_1;
-    std::vector<std::chrono::duration<double, std::milli>> duration_vector_2;
+    std::vector<double> duration_vector;
+
     srand(1);
     for (int n = 0; n < BATCH_SIZE; ++n)
         for (int z = 0; z < FIn; ++z)
@@ -37,45 +37,43 @@ int main(int, char **)
 
     for (int i = 0; i < NB_TESTS; i++)
     {
-        auto start1 = std::chrono::high_resolution_clock::now();
+        double start = rtclock();
         bn_tiramisu(input.raw_buffer(), parameters.raw_buffer(), mean.raw_buffer(), variance.raw_buffer(), output.raw_buffer());
-        auto end1 = std::chrono::high_resolution_clock::now();
-        std::chrono::duration<double, std::milli> duration = end1 - start1;
-        duration_vector_2.push_back(duration);
+        
+        double end = rtclock();
+        duration_vector.push_back((end - start) * 1000);
     }
+
     std::cout << "\t\tTiramisu BN duration"
-              << ": " << median(duration_vector_2) << "; " << std::endl;
+              << ": " << median(duration_vector) << "; " << std::endl;
+              
     std::ofstream resultfile;
     resultfile.open("tiramisu_result.txt");
     for (int n = 0; n < BATCH_SIZE; ++n)
         for (int z = 0; z < FIn; ++z)
             for (int y = 0; y < N; ++y)
                 for (int x = 0; x < N; ++x)
-                    resultfile << (float)((int)(output(x, y, z, n) * 100) / 100.0);
+                    resultfile << setprecision(10) << output(x, y, z, n) << std::endl;
 
     resultfile.close();
 
     std::cout << "\t\t Result"
               << ":\n\n";
 
-    FILE *fp1, *fp2;
-
-    char line1[5], line2[5];
-
-    float file_count = 0, corr = 0;
-    fp1 = fopen("tiramisu_result.txt", "r");
-    fp2 = fopen("mkldnn_result.txt", "r");
-
-    while (!feof(fp1))
+    std::ifstream infile1("tiramisu_result.txt"), infile2("mkl_result.txt");
+    std::string line1, line2;
+    float file_count = 0, corr = 0, f1, f2;
+    
+    while (std::getline(infile1, line1))
     {
-        fgets(line1, sizeof(line1), fp1);
-        fgets(line2, sizeof(line2), fp2);
+        std::getline(infile2, line2);
         file_count += 1;
-        if (strcmp(line1, line2) == 0)
+        f1 = std::stof(line1);
+        f2 = std::stof(line2);
+
+        if (abs(f1 - f2) <= 0.0001)
             corr += 1;
     }
-    fclose(fp1);
-    fclose(fp2);
 
     printf("\t\t Percentage of correctness %f \n\n", corr / file_count * 100);
     return 0;

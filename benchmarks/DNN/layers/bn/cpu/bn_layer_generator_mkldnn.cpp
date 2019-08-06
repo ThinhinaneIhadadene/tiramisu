@@ -14,8 +14,9 @@ using namespace std;
 
 void bn_mkldnn()
 {
-    std::vector<std::chrono::duration<double, std::milli>> duration_vector;
+    std::vector<double> duration_vector;
     auto cpu_engine = engine(engine::cpu, 0);
+
     std::vector<float> net_src(BATCH_SIZE * FIn * N * N);
     std::vector<float> net_dst(BATCH_SIZE * FIn * N * N);
     std::vector<float> mean_vect(FIn);
@@ -77,25 +78,25 @@ void bn_mkldnn()
 
     for (int i = 0; i < NB_TESTS; i++)
     {
-        auto start1 = std::chrono::high_resolution_clock::now();
+        double start = rtclock();
         stream(stream::kind::eager).submit(net_fwd).wait();
-        auto end1 = std::chrono::high_resolution_clock::now();
-        std::chrono::duration<double, std::milli> duration = end1 - start1;
-        duration_vector.push_back(duration);
+
+        double end = rtclock();
+        duration_vector.push_back((end - start) * 1000);
     }
 
     std::cout << "\t\tMKL-DNN BN duration"
               << ": " << median(duration_vector) << "; " << std::endl;
 
     ofstream resultfile;
-    resultfile.open("mkldnn_result.txt");
+    resultfile.open("mkl_result.txt");
 
     float *bnres = (float *)dst_memory.get_data_handle();
     for (size_t i = 0; i < BATCH_SIZE; ++i)
         for (size_t j = 0; j < FIn; ++j)
             for (size_t k = 0; k < N; ++k)
                 for (size_t l = 0; l < N; ++l)
-                    resultfile << (float)((int)(bnres[i * FIn * N * N + j * N * N + k * N + l] * 100) / 100.0);
+                    resultfile << setprecision(10) << bnres[i * FIn * N * N + j * N * N + k * N + l] << std::endl;
 
     resultfile.close();
 }
