@@ -12,9 +12,9 @@ int main() {
 
   int rank = tiramisu_MPI_init();
 
-    Halide::Buffer<int32_t> input(_FIN, _N, _N, _BATCH_SIZE/10 + 2, "input");
+    Halide::Buffer<float> input(_FIN, _N, _N, _BATCH_SIZE/_NODES + 2, "input");
 
-    Halide::Buffer<int32_t> input_g(_FIN, _N, _N, _BATCH_SIZE, "input");
+    Halide::Buffer<float> input_g(_FIN, _N, _N, _BATCH_SIZE, "input");
 
     for(int i = 0; i < _BATCH_SIZE; i++)
             for(int k = 0; k < _N; k++)
@@ -22,19 +22,19 @@ int main() {
                     for(int m=0; m < _FIN; m++)
                         input_g(m,k,l,i) = k+l+m;
 
-                        for(int i = 0; i < _BATCH_SIZE/10; i++)
+                        for(int i = 0; i < _BATCH_SIZE/_NODES; i++)
                                 for(int k = 0; k < _N; k++)
                                     for(int l=0; l < _N; l++)
                                         for(int m=0; m < _FIN; m++)
-                                            input(m,l,k,i) = input_g(m,l,k,i + rank * _BATCH_SIZE/10);
+                                            input(m,l,k,i) = input_g(m,l,k,i + rank * _BATCH_SIZE/_NODES);
 
-    Halide::Buffer<int32_t> bias(_FOUT_BLOCKING,  _FOUT_NB_BLOCKS, "bias");
+    Halide::Buffer<float> bias(_FOUT_BLOCKING,  _FOUT_NB_BLOCKS, "bias");
 
-    Halide::Buffer<int32_t> filter(_FOUT_BLOCKING, _FIN, _K, _K, _FOUT_NB_BLOCKS, "filter");
+    Halide::Buffer<float> filter(_FOUT_BLOCKING, _FIN, _K, _K, _FOUT_NB_BLOCKS, "filter");
 
-    Halide::Buffer<int32_t> output(_FOUT_BLOCKING, _N, _N, _FOUT_NB_BLOCKS,_BATCH_SIZE/10, "output");
+    Halide::Buffer<float> output(_FOUT_BLOCKING, _N, _N, _FOUT_NB_BLOCKS,_BATCH_SIZE/_NODES, "output");
 
-    Halide::Buffer<int32_t> output_g(_FOUT_BLOCKING, _N, _N, _FOUT_NB_BLOCKS,_BATCH_SIZE, "output");
+    Halide::Buffer<float> output_g(_FOUT_BLOCKING, _N, _N, _FOUT_NB_BLOCKS,_BATCH_SIZE, "output");
 
 
   for (int fout = 0; fout < _FOUT; ++fout)
@@ -53,7 +53,7 @@ int main() {
       nnconv_ref(input_g.raw_buffer(),bias.raw_buffer(),filter.raw_buffer(), output_g.raw_buffer());
       MPI_Barrier(MPI_COMM_WORLD);
 
-    for (int n = 0; n < _BATCH_SIZE/10; ++n)
+    for (int n = 0; n < _BATCH_SIZE/_NODES; ++n)
     	for (int fout = 0; fout < _FOUT_NB_BLOCKS; ++fout)
     		for (int y = 0; y < _N; ++y)
     			for (int x = 0; x < _N; ++x)

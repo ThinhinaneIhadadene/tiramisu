@@ -6,37 +6,39 @@
 
 #include <sys/time.h>
 
-// #define LARGE_DATA_SET	0
-// #define MEDIUM_DATA_SET	0
-// #define SMALL_DATA_SET	1
-//
-// #if LARGE_DATA_SET
-// 	#define BATCH_SIZE 100
-// #elif MEDIUM_DATA_SET
-// 	#define BATCH_SIZE 32
-// #elif SMALL_DATA_SET
-// 	#define BATCH_SIZE 8
-// #endif
-//
-//
-// #define NODES 10
-//
-// // Size of one data dimension
-// #define N 100
-//
-// // Number of features in the input
-// #define FIn 3
-//
-// // Number of features in the output
-// #define FOut 32
-//
-// // Size of convolution filter (KxK)
-// #define K 3
-//
-// // Parameters for Tiramisu code
-// #define FOUT_BLOCKING 8
-// #define FOUT_NB_BLOCKS FOut/FOUT_BLOCKING
-//
+#define _NODES 10
+
+#define LARGE_DATA_SET	1
+#define MEDIUM_DATA_SET	0
+#define SMALL_DATA_SET	0
+
+#if LARGE_DATA_SET
+	#define _BATCH_SIZE 100
+#elif MEDIUM_DATA_SET
+	#define _BATCH_SIZE 32
+#elif SMALL_DATA_SET
+	#define _BATCH_SIZE 8
+#endif
+
+
+
+
+// Size of one data dimension
+#define _N 100
+
+// Number of features in the input
+#define _FIN 3
+
+// Number of features in the output
+#define _FOUT 32
+
+// Size of convolution filter (KxK)
+#define _K 3
+
+// Parameters for Tiramisu code
+#define _FOUT_BLOCKING 8
+#define _FOUT_NB_BLOCKS _FOUT/_FOUT_BLOCKING
+
 // #define FIN_BLOCKING 4
 // #define FIN_NB_BLOCKS FIn/FIN_BLOCKING
 //
@@ -52,15 +54,6 @@
 //
 // #define X_NB_BLOCKS N/X_BLOCKING
 // #define Y_NB_BLOCKS N/Y_BLOCKING
-
-#define _N 10
-#define _FIN 8
-#define _BATCH_SIZE 40
-#define _FOUT_BLOCKING 8
-#define _FOUT_NB_BLOCKS 6
-
-#define _FOUT 32
-#define _K 3
 
 // If this is defined, print 10 array elements only
 #define PRINT_ONLY_10 1
